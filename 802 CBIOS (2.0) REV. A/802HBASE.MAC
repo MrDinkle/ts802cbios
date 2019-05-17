@@ -1,0 +1,464 @@
+;	title	'*** 802HBASE IN Cbios For CP/M Ver. 2.2 6/19/81***'
+
+;*****************************************************************
+;*								*
+;* The following revision number is in reference to the CP/M	*
+;* 2.2 Cbios. 							*
+;*								*
+;*****************************************************************
+
+revnum	equ	20		;Cbios revision number
+cpmrev	equ	22		;CP/M revision number
+smsize	equ	64		;system memory size
+LED	EQU	80H		;LED INDICATOR PORT ADDRESS
+false	equ	0		;define logical values
+true	equ	not false
+
+SEAGATE	EQU	TRUE		;TRUE IF SEAGATE ST-506 SUPPORTED
+
+REMOTE	equ	FALSE		;true if SERIAL IPC LOGIC SUPPORTED
+
+TANDON	equ	true		;true if TANDON FLOPPY DISKS SUPPORTED
+
+;*****************************************************************
+;*								*
+;* CP/M system equates. If reconfiguration of the CP/M system	*
+;* is being done, the changes can be made to the following	*
+;* equates.							*
+;*								*
+;*****************************************************************
+
+cdisk	equ	4		;Address of last logged disk
+buff	equ	80h		;Default buffer address
+tpa	equ	100h		;Transient memory
+intioby	equ	0		;Initial IOBYTE
+iobyte	equ	3		;IOBYTE location
+wbot	equ	0		;Warm boot jump address
+entry	equ	5		;BDOS entry jump address
+
+;****************************************************************
+;*								*
+;* The following are internal Cbios equates. Most are misc. 	*
+;* constants.							*
+;*								*
+;****************************************************************
+
+acr	equ	0dh		;A carriage return
+alf	equ	0ah		;A line feed
+
+;****************************************************************
+;*								*
+;* The jump table below must remain in the same order, the 	*
+;* routines may be changed, but the function executed must be	*
+;* the same.							*
+;*								*
+;****************************************************************
+
+CBOOTE:	jmp	cboot		;Cold boot entry point
+wboote:	jmp	wboot		;Warm boot entry point
+
+	jmp	const		;Console status routine
+	jmp	conin		;Console input
+cout:	jmp	conout		;Console output
+	jmp	list		;List device output
+	jmp	punch		;Punch device output
+	jmp	reader		;Reader device input
+
+	jmp	home		;Home drive
+	jmp	setdrv		;Select disk
+	jmp	settrk		;Set track
+	jmp	setsec		;Set sector
+	jmp	setdma		;Set DMA address
+	jmp	read		;Read the disk
+	jmp	write		;Write the disk
+
+	jmp	listst		;List device status
+
+	jmp	sectran		;Sector translation
+
+	jmp	donop		;Protect against strange jumps
+	jmp	donop
+
+;
+	LXI	H,0
+	LDA	0004
+	ANI	0FH
+	RET
+;
+;	IOBYTE INITAILIZATION
+;
+INITDEV:
+	MVI	A,IODEF		;INITIALIZE CP/M IOBYTE
+	STA	IOBYTE		;SET IOBYTE
+	RET
+;
+;	CP/M LOGICAL DISKS TRANSLATE TABLE
+;
+;LOGICAL DISK # A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P
+DISKTAB:DB	0,2,1,0
+	IF	REMOTE
+	DB	0,1,2,3
+	ENDIF
+	IF	NOT REMOTE
+	DB	0,0,0,0
+	ENDIF
+	DB	0,0,0,0,0,0,0,0
+;
+CTLTAB:	DB	2,1,1,1
+	IF	REMOTE
+	DB	3,3,3,3
+	ENDIF
+	IF	NOT REMOTE
+	DB	0,0,0,0
+	ENDIF
+	DB	0,0,0,0,0,0,0,0			;0 = INVALID I/O SELECT
+						;1 = SEAGATE I/O ROUTINE
+						;2 = FLOPPY I/O ROUTINE
+						;3 = REMOTE I/O ROUTINE
+DSKTHD:	DB	0,1,2,0		;TO REPLACE DISKTAB WHEN BOOTED FROM HARD DISK
+CTLTHD:	DB	1,1,1,2		;TO REPLACE CTLTAB WHEN BOOTED FROM HARD DISK
+
+CTLR:	DB	1
+;-------
+;
+;	WARM BOOT CONTROL FLAG IS PASSED BY 'BOOT' MODULE
+;	= 0 IF SYSTEM COLD BOOT FROM WINCHESTER DRIVE
+;	= 1 IF SYSTEM COLD BOOT FROM FLOPPY DRIVE.
+;
+WBFLAG:	DB	0
+;
+;****************************************************************
+;*								*
+;* PROCESSING ROUTINES FOR DISK FUNCTIONS:			*
+;*								*
+;****************************************************************
+
+HOME:	CALL	SELECT
+	JZ	MHOME
+	dcr	a
+	jz	dhome
+	JMP	XHOME
+
+SETDRV:	MOV	A,C
+	MVI	B,0
+	lxi	h,disktab
+	DAD	B
+	MOV	A,M
+	LXI	H,CTLTAB
+	DAD	B
+	MOV	C,A
+	MOV	A,M
+	STA	CTLR
+	LXI	H,0
+	ORA	A
+	RZ
+	DCR	A
+	JZ	MSELDSK
+	DCR	A
+	JZ	DSELDSK
+	JMP	XSELDSK
+
+SELECT:	LDA	CTLR
+	ORA	A
+	JNZ	SELGO
+	POP	D
+	RET
+SELGO:	DCR	A
+	RET
+
+;
+SETTRK:	mov	h,b
+	mov	l,c
+	push	b
+	CALL	MSETTRK
+	POP	B
+	PUSH	B
+	CALL	DSETTRK
+	POP	B
+	JMP	XSETTRK
+
+SETSEC:	mov	h,b
+	mov	l,c
+	PUSH	B
+	CALL	MSETSEC
+	POP	B
+	PUSH	B
+	CALL	DSETSEC
+	POP	B
+	JMP	XSETSEC
+
+SETDMA:	mov	h,b
+	mov	l,c
+	PUSH	B
+	CALL	MSETDMA
+	POP	B
+	PUSH	B
+	CALL	DSETDMA
+	POP	B
+	JMP	XSETDMA
+
+READ:	CALL	SELECT
+	JZ	MREAD
+	DCR	A
+	JZ	DREAD
+	JMP	XREAD
+
+WRITE:	CALL	SELECT
+	JZ	MWRITE
+	DCR	A
+	JZ	DWRITE
+	JMP	XWRITE
+
+SECTRAN:CALL	SELECT
+	JZ	MSECTRAN
+	DCR	A
+	JZ	DSECTRAN
+	JMP	XSECTRAN
+
+DONOP:	RET
+
+	IF	NOT TANDON
+DCOLD:
+DWARM:
+DHOME:
+DSELDSK:
+DSETTRK:
+DSETSEC:
+DSETDMA:
+DREAD:
+DWRITE:
+DSECTRAN:
+	RET			;RETURN - NO ROUTINE PRESENT
+	ENDIF
+
+	IF	NOT SEAGATE
+MCOLD:
+MWARM:
+MHOME:
+MSELDSK:
+MSETTRK:
+MSETSEC:
+MSETDMA:
+MREAD:
+MWRITE:
+MSECTRAN:
+	RET			;RETURN - NO ROUTINE PRESENT
+	ENDIF
+
+	IF	NOT REMOTE
+XCOLD:
+XWARM:
+XHOME:
+XSELDSK:
+XSETTRK:
+XSETSEC:
+XSETDMA:
+XREAD:
+XWRITE:
+XSECTRAN:
+	RET			;RETURN - NO ROUTINE PRESENT
+	ENDIF
+
+;****************************************************************
+;*								*
+;* Signon message output during cold boot.			*
+;*								*
+;****************************************************************
+
+prompt:	db	acr,alf,alf
+	db	'TELEVIDEO SYSTEM TS-802H V'
+	db	revnum/10+'0'		;Cbios revision number
+	db	'.'
+	db	(revnum mod 10)+'0'
+	db	acr,alf
+	db	smsize/10+'0' 		;CP/M memory size
+	db	(smsize mod 10)+'0'
+	db	'K CP/M Vers. '		;CP/M version number
+	db	cpmrev/10+'0'
+	db	'.'
+	db	(cpmrev mod 10)+'0'
+	db	acr,alf
+	db	'Tandon TM-603s Winchester.'
+	db	acr,alf
+
+	IF	REMOTE
+	DB	'Remote IPC disks supported.',acr,alf
+	ENDIF
+
+	db	0
+
+;****************************************************************
+;*								*
+;* Utility routine to output the message pointed at by H&L,	*
+;* terminated with a null.					*
+;*								*
+;****************************************************************
+
+message:mov	a,m		;Get a character of the message
+	inx	h		;Bump text pointer
+	ana	a		;Test for end
+	rz			;Return if done
+	push	h		;Save pointer to text
+	mov	c,a		;Output character in C
+	call	cout		;Output the character
+	pop	h		;Restore the pointer
+	jmp	message		;Continue until null reached
+
+;****************************************************************
+;*								*
+;* Cboot is the cold boot loader. All of CP/M has been loaded in*
+;* when control is passed here.					*
+;*								*
+;****************************************************************
+
+cboot:	lxi	sp,tpa		;Set up stack
+	sta	WBFLAG		;SAVE SYSTEM BOOT DRIVE (WINCHESTER OR FLOPPY)
+				;FOR WARM BOOT ROUTINE.
+	CALL	INITDEV		;IOBYTE INITIALIZATION
+	CALL	TINIT		;CALL I/O PORT INITIALIZATION
+
+	lxi	h,prompt	;Prep for sending signon message
+	call	message		;Send the prompt
+
+	LXI	B,true		;FLAG PRIMARY CONTROLLER
+	CALL	MCOLD
+	LXI	B,FALSE
+	CALL	DCOLD
+	LXI	B,false
+	CALL	XCOLD
+
+	MVI	A,0
+	STA	CDISK
+
+	OUT	LED		;TURN OFF ALL LED.
+
+	.Z80
+	LD	A,(WBFLAG)
+	CP	1		;BOOTED FROM FLOPPY?
+	JR	Z,GOCPM		;YES, SKIP
+	LD	HL,DSKTHD	;TABLE FOR HARD DISK BOOT CONFIGURATION
+	LD	DE,DISKTAB	;PRESENT DEFAULT TABLE
+	LD	BC,4		;COUNTER FOR REPLACEMENT
+	LDIR
+	LD	HL,CTLTHD
+	LD	DE,CTLTAB
+	LD	BC,4
+	LDIR
+	.8080
+;
+;****************************************************************
+;*								*
+;* Gocpm is the entry point from cold boots, and warm boots. It	*
+;* initializes some of the locations in page 0, and sets up the	*
+;* initial DMA address (80h).					*
+;*								*
+;****************************************************************
+
+GOCPM:	mvi	a,(jmp)		;Initialize jump to warm boot
+	sta	wbot
+	sta	entry		;Initialize jump to BDOS
+	lxi	h,wboote	;Address in warm boot jump
+	shld	wbot+1
+	lxi	h,CBOOTE-0DFAH	;Address in BDOS jump ****** ---- ******
+	shld	entry+1
+	lda	cdisk		;Jump to CP/M with currently selected disk in C
+	mov	c,a
+	lda	cwflg
+	ana	a
+	lxi	d,coldbeg	;Beginning of initial command
+	mvi	a,coldend-coldbeg+1 ;Length of command
+	jz	cldcmnd
+	lxi	d,warmbeg
+	mvi	a,warmend-warmbeg+1
+cldcmnd:lxi	h,CBOOTE-15F8H	;Command buffer
+	sta	CBOOTE-15F9H
+	mov	b,a
+
+MOVLOOP:LDAX	D		;MOVE THE COMMAND
+	MOV	M,A
+	INX	D
+	INX	H
+	DCR	B
+	JNZ	MOVLOOP
+
+	lda	cwflg
+	ana	a
+	lda	autoflg
+	jz	cldbot
+	rar
+cldbot:	rar
+	jc	CBOOTE-1600H
+	jmp	CBOOTE-15FDH	;Enter CP/M
+
+cwflg:	db	0		;Cold/warm boot flag
+
+;****************************************************************
+;*								*
+;* The following byte determines if an initial command is to be	*
+;* given to CP/M on warm or cold boots. The value of the byte is*
+;* used to give the command to CP/M:				*
+;*								*
+;* 0 = never give command.					*
+;* 1 = give command on cold boots only.				*
+;* 2 = give the command on warm boots only.			*
+;* 3 = give the command on warm and cold boots.			*
+;*								*
+;****************************************************************
+
+autoflg:db	0		;Auto command feature
+
+;****************************************************************
+;*								*
+;* If there is a command inserted here, it will be given if the	*
+;* auto feature is enabled.					*
+;*	For Example:						*
+;*								*
+;*	coldbeg	db	'MBASIC MYPROG'				*
+;*	coldend	db	0					*
+;*								*
+;* will execute microsoft basic, and mbasic will execute the	*
+;* "MYPROG" basic program.					*
+;*								*
+;****************************************************************
+
+coldbeg:db	''		;Cold boot command goes here
+coldend:db	0
+warmbeg:db	''		;Warm boot command goes here
+warmend:db	0
+
+;****************************************************************
+;*								*
+;* Wboot loads in all of CP/M except the CBIOS, then initializes*
+;* system parameters as in cold boot. See the Cold Boot Loader	*
+;* listing for exactly what happens during warm and cold boots.	*
+;*								*
+;****************************************************************
+
+wboot:	lxi	sp,tpa		;Set up stack pointer
+	MVI	A,1
+	sta	cwflg		;Set cold/warm boot flag
+
+;	INITIALIZE DISKS
+
+	CALL	WBOOT1		;GET WARMBOOT CONTROL FLAG
+	CALL	MWARM
+	LDA	WBFLAG
+	DCR	A
+	CALL	WBOOT2		;GET WARMBOOT CONTROL FLAG
+	CALL	DWARM
+	LXI	B,false
+	CALL	XWARM
+
+	JMP	GOCPM		;TO COMMON SET-UP
+
+WBOOT1:
+	LDA	WBFLAG
+WBOOT2:
+	ORA	A
+	LXI	B,true		;FLAG PRIMARY CONTROLLER TO LOAD CP/M
+	RZ
+	LXI	B,false
+	RET
+
+;	end
+

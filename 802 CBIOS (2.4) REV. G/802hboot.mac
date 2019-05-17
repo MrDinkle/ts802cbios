@@ -1,0 +1,252 @@
+	.Z80
+
+CBOOTE:	JP	CBOOT		; Cold boot entry point
+WBOOTE:	JP	WBOOT		; Warm boot entry point
+	JP	CONST		; Console status routine
+	JP	CONIN		; Console input
+	JP	CONOUT		; Console output
+	JP	LIST		; List device output
+	JP	PUNCH		; Punch device output
+	JP	READER		; Reader device input
+	JP	HOME		; Home drive
+	JP	SELDSK		; Select disk
+	JP	SETTRK		; Set track
+	JP	SETSEC		; Set sector
+	JP	SETDMA		; Set DMA address
+	JP	READ		; Read the disk
+	JP	WRITE		; Write the disk
+	JP	LISTST		; List device status
+	JP	SECTRAN		; Sector translation
+	JP	UNUSED
+	JP	UNUSED
+	JP	UNUSED
+	JP	UNUSED
+	JP	UNUSED
+
+IODEF: 	DEFB	00010101B	; System defaulted iobyte
+
+	DEFS	11		; Reserve for new CP/M
+
+MSECNT:	DEFB	0		; LSB
+	DEFB	0		; MSB 16-bit counter increment every 10ms
+;
+;	System Interrupt Vectors
+;
+
+INTVEC:
+DMAI0:	DEFW	RETURN		; DMA interrupt on ready
+DMAI1:	DEFW	RETURN		; DMA interrupt on match
+DMAI2:	DEFW	RETURN		; DMA interrupt on end of block
+DMAI3:	DEFW	RETURN		; DMA interrupt on match & end of block
+;
+CTCI0:	DEFW	RETURN		; CTC ch #0 interrupt (timer)
+CTCI1:	DEFW	RETURN		;        #1 interrupt (timer)
+CTCI2:	DEFW	RETURN		;        #2 interrupt (timer/fdc)
+CTCI3:	DEFW	TCOUNT		;        #3 interrupt (timer/wdc)
+;
+SIOI00:	DEFW	RETURN		; SIO #0 ch B txmt buff empty(int terminal)
+SIOI01:	DEFW	RETURN		;        ch B ext/stat change
+SIOI02:	DEFW	CRTINT		;        CH B receive char avail
+SIOI03:	DEFW	RETURN		;        ch B special receive condition
+SIOI04:	DEFW	RETURN		;        ch A txmt buff empty(RS-422)
+SIOI05:	DEFW	RETURN		;        ch A ext/stat change
+SIOI06:	DEFW	RETURN		;        ch A receive char avail
+SIOI07:	DEFW    RETURN		;        ch A special receive condition
+;
+SIOI10:	DEFW	RETURN		; SIO #1 ch B txmt buff empty(RS-232 port2)
+SIOI11:	DEFW	RETURN		;        ch B ext/stat change
+SIOI12:	DEFW	TTYINT		;        ch B receive char avail
+SIOI13:	DEFW	RETURN		;        ch B special receive condition
+SIOI14:	DEFW	RETURN		;        ch A txmt buff empty(RS-232 port2)
+SIOI15:	DEFW 	RETURN		;        ch A ext/stat change
+SIOI16:	DEFW	MODINT		;	 ch A receive char avail
+SIOI17:	DEFW	RETURN		;	 ch A special receive condition
+
+;	Not implemented interrupts
+
+RETURN:	RETI
+
+;	Auxiliary Jump Table
+
+WTSERV:	DEFB	0
+	JP	UNUSED
+	JP	UNUSED
+	JP	UNUSED
+	JP	UNUSED
+	JP	UNUSED
+	JP	UNUSED
+	JP	unused		; Get/Set time and date
+	JP	INTADD		; Get interrupt table address in DE
+
+;	Not used jump vectors
+
+UNUSED:	RET			; Just return
+ 
+;	COPYRIGHT STATEMENT
+
+	DEFM	'(C) 1983, TELEVIDEO SYSTEMS INC.'
+
+;	VERSION AND REVISION NUMBER
+
+VER:	DEFB	2
+REV:	DEFB	4
+ 
+;****************************************************************
+;*               Cboot is the cold boot loader.			*
+;*  All of CP/M has been loaded in when control is passed here.	*
+;****************************************************************
+
+CBOOT:	DI
+	LD	SP,TPA		; Set up stack
+	LD	(WBFLAG),A	; Save system boot drive(winchester or floppy)
+				; for warm boot routine
+
+	LD	A,(IODEF)	; Initialize CP/M iobyte
+	LD	(IOBYTE),A	; Set iobyte
+;
+;	System Interrupt Vector Mode 2
+;
+	LD	HL,INTVEC
+	LD	A,H
+	LD	I,A
+	IM	2
+
+	CALL	HDWINI		; Call I/O port initialization
+	EI
+;
+;	Identify hard disk configuration.
+;	If system is configured as 20 Mb hard disk, then
+;	replace default disk parameter block data(configured
+;       for 10 Mb) by 20 Mb hard disk configuration.
+;
+	IN	A,(00H)		; Read dip switch
+	BIT	3,A		; 0=10 Mb, 1=20 Mb configuration
+	JR	Z,DEFALT	; 10 Mb hrad disk configuration
+	LD	HL,HDSIZE	; Hard disk size for sign-on message
+	LD	A,'2'
+	LD	(HL),A
+	LD	HL,HBLK02	; Address for 20 Mb dpb on drive 0
+	LD	(DPHD02),HL	; Replace 10 Mb dpb on drive 0 by 20 Mb dpb
+	LD	HL,HBLK12
+	LD	(DPHD12),HL	; Replace drive 1
+	LD	HL,HBLK22
+	LD	(DPHD22),HL	; Replace drive 2
+;	 
+DEFALT:	LD	HL,PROMPT	; Prep for sending signon message
+	CALL	PRNT		; Send the prompt
+
+	CALL	HCOLD
+	CALL	FCOLD
+
+	LD	A,0
+	LD	(CDISK),A
+	OUT	(LED),A		; Turn off all led
+
+	LD	A,(WBFLAG)
+	CP	1		; Booted from floppy?
+	JR	Z,GOCPM		; Yes, skip
+	LD	HL,DSKTHD	; Table for hard disk boot configuration
+	LD	DE,DISKTAB	; Present default table
+	LD	BC,4		; Counter for replacement
+	LDIR
+	LD	HL,CTLTHD
+	LD	DE,CTLTAB
+	LD	BC,4
+	LDIR
+
+;****************************************************************
+;* Gocpm is the entry point from cold boots, and warm boots. It	*
+;* initializes some of the locations in page 0, and sets up the	*
+;* initial DMA address (80h).					*
+;****************************************************************
+
+GOCPM:
+	LD	HL,CPMBUF	; Initialize DMA address
+	LD	(DMAADR),HL
+	LD	A,JP		; Initialize jump to warm boot
+	LD	(WBOT),A
+	LD	(ENTRY),A	; Initialize jump to BDOS
+	LD	HL,WBOOTE	; Address in warm boot jump
+	LD	(WBOT+1),HL
+	LD	HL,BDOS		; Address in BDOS jump 
+	LD	(ENTRY+1),HL
+	LD	HL,WTSERV
+	LD	(1BH),HL
+	XOR	A		; Clear serial printer buffer count
+	LD	(UL1CNT),A	;   on cold or warm start
+	LD	A,(CDISK)	; Jump to CP/M with currently selected disk 
+	LD	C,A		; Store in C
+	AND	0FH		; Mask off high-order 4 bits
+	CP	MAXDRV+1	; See if selected disk is illegal
+	JP	C,CCP		; If legal drive, enter CP/M
+	LD	A,C
+	AND	0F0H		; Mask off low-order 4 bits
+	LD	C,A		; Store in C
+	JP	CCP		; Enter CP/M 
+
+;	Hard disk initialization
+
+HCOLD:	CALL	INIT		; Initialize flags and variables
+	LD	A,WREST		; Restore command
+	OUT	(WCMD),A
+HCOLD1:	IN	A,(WSTAT)
+	AND	WBUSY		; Wait till done
+	JR	NZ,HCOLD1
+	RET
+
+;	Floppy disk initialization 
+
+FCOLD:	XOR	A		; Make logged drive zero
+	LD	(DRIVE),A
+	LD	(HSTACT),A	; Reset disk buffer active flag
+	LD	(HSTWRT),A	; Reset write pending data in buffer
+	LD	A,00010010B	; Set drive select configure
+	LD	(DSELCMD),A	; Select drive 0, Dden, side 1 and motor on
+	OUT	(DSELOP),A
+	LD	A,RESCMD	; Restore head to track #0
+	OUT	(FDCCMD),A
+	RET	 
+
+;*************************************************************************
+;* 	             Wboot is the warm boot loader.                      *
+;*	We jump here whwnever the user wants to restart the system,      *
+;*	     i.e., reread CP/M without modifying the bios.               *
+;*************************************************************************
+
+WBOOT:	LD	SP,TPA		; Set up stacks
+	XOR	A
+	LD	(HSTACT),A	; Initialize host active as 0
+HWBOOT:	
+	LD	C,0		; Select drive zero
+	CALL	SELDSK
+	CALL	HOME		; Seek to track zero
+	LD	HL,CCP		; CP/M load address
+	LD	(DMAADR),HL	; Save it
+	LD	C,2		
+	CALL	SETSEC		; Set sector address
+	LD	A,NSECT		; # of sectors to warmboot
+WB1:	
+	LD	(SECNT),A	; Save sector count
+	CALL	READ		; Read a sector from hard disk
+	OR	A
+	JR	Z,WB2		; Jump if read ok
+	LD	HL,MSG1		; Can't boot
+	CALL	PRNT
+	CALL	CONIN		; Wait for operator
+	CALL	CRLF
+	JR	HWBOOT		; Try another boot
+WB2:
+	LD	HL,(DMAADR)
+	LD	DE,128
+	ADD	HL,DE		; Bump DMA address
+	LD	(DMAADR),HL
+	LD	HL,SEKSEC
+	INC	(HL)		; Increment sector address
+	LD	A,(SECNT)	; A = sector count
+	DEC	A
+	JR	NZ,WB1		; Jump if more to read
+	CALL	RESDMA		; Reset DMA
+	JP	GOCPM		; Return to CP/M
+
+; END OF 802HBOOT.MAC
+

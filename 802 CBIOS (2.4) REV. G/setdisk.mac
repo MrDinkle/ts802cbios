@@ -1,0 +1,121 @@
+TITLE	*** Hard disk directory area preset routine ***
+;
+;	This self contained subroutine fills the directory areas
+;	of logical drives B and C on the hard disk with E5's.
+;	 This is required to allow CP/M	to recognize the directory 
+;	as being blank after a FORMAT operation on the hard disk.
+;	Failing to run this after formatting the hard drive will
+;	result in CP/M returning with the error message;
+;	"No Space" or "No Directory Space" when attempting to
+;	write a file to drive B or drive C. STAT (CP/M utility)
+;	will indicate that drives B and C have their full capacity
+;	unused, in contradiction with the error message.
+;
+ccp	equ	0D800h		;CCP starting location in 61K CP/M
+bios	equ	ccp+1600h	;base of bios
+Bdir	equ	734		;first track of logical drive B
+Cdir	equ	1468		;first track of logical drive C
+Bdsize	equ	512*32		;drive B directory size
+Cdsize	equ	128*32		;drive C directory size
+nsects	equ	64		;number of 128 byte sectors per track
+;
+;
+;	jump vector for individual subroutines
+boot	equ	bios+0		;cold start
+wboot	equ	bios+3		;warm start
+const	equ	bios+6		;console status
+conin	equ	bios+9		;console character in
+conout	equ	bios+12		;console character out
+list	equ	bios+15		;list character out
+punch	equ	bios+18		;punch character out
+reader	equ	bios+21		;reader character out
+home	equ	bios+24		;move head to home position
+seldsk	equ	bios+27		;select disk
+settrk	equ	bios+30		;set track number
+setsec	equ	bios+33		;set sector number
+setdma	equ	bios+36		;set dma address
+read	equ	bios+39		;read disk
+write	equ	bios+42		;write disk
+listst	equ	bios+45		;return list status
+sectran	equ	bios+48		;sector translate
+;
+	aseg
+;
+	.Z80
+;
+	ORG	100h		;start at bottom of transient area
+;
+	ld	C,01		;select drive
+	call	seldsk
+;
+	ld	BC,FILLER	;point DMA address to filler byte block
+	call	setdma
+;
+	ld	HL,Bdsize	;set up a byte count buffer for drive B
+	ld	(bytcnt),HL	;
+;
+	ld	HL,Bdir		;set up a track pointer
+	ld	(track),HL	;
+;
+	call	EXEC		;go do it
+;
+	ld	HL,Cdsize	;Set up byte count for drive C
+	ld	(bytcnt),HL
+;
+	ld	HL,Cdir
+	ld	(track),HL
+;
+	call	EXEC
+;
+	ret			;return to CP/M
+;
+;
+;	EXEC - this is where the actual writing gets done. 
+;
+EXEC: 	ld	HL,(track)	;set up track to be written to
+EXEC1:	ld	B,H
+	ld	C,L
+	call	settrk
+;
+	ld	A,01		;point to first sector
+LOOP:	ld	(seccnt),A
+	ld	C,A
+	ld	B,0
+	call	setsec
+;
+	call	write		;write the sector
+;
+	ld	HL,(bytcnt)	;compute byte count
+	ld	BC,128
+	and	A		;clear carry
+	sbc	HL,BC
+	ret	c		;done when carry set
+	ld	(bytcnt),HL
+;
+	ld	A,(seccnt)
+	inc	A
+	cp	64
+	jr	nz,LOOP
+	ld	HL,(track)
+	inc	HL
+	ld	(track),HL
+	jr	EXEC1
+;
+;	variable storage buffer area
+;
+track:	DS	02
+seccnt:	DS	01
+bytcnt:	DS	02
+;
+;	filler byte area
+;
+FILLER:	DW	0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h
+	DW	0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h
+	DW	0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h
+	DW	0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h
+	DW	0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h
+	DW	0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h
+	DW	0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h
+	DW	0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h,0E5E5h
+;
+	end

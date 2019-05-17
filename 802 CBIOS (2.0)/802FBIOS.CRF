@@ -1,0 +1,1805 @@
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1
+
+
+                                
+                                ; CBIOS FOR TELEVIDEO TS-802 SYSTEM
+                                
+                                ;	COPYRIGHT (C) 1981
+                                ;	TELEVIDEO SYSTEMS INC.
+                                ;	1170 MORSE AVENUE 
+                                ;	SUNNYVALE, CA 94086
+                                ;	(408) 745-7760
+                                
+                                ; 	VERSION	V2.0	(RELEASE)
+                                
+                                ;	7-24-81		SUNG WOO LEE
+                                ;	- SIGN-ON MESSAGE CHANGE
+                                
+                                ;	8-25-81		SUNG WOO LEE
+                                ;	- ENHANCEMENT FOR REV. B
+                                ;	  -- DRIVE DOOR OPEN MESSAGE
+                                ;	  -- DETAILED ERROR MESSAGE
+                                ;	  -- DISK DRIVE MOTOR & LIGHT OFF WHEN UNUSED
+                                ;	  -- NO SEEK ON THE SAME TRACK
+                                ;	  -- NO SELECT DRIVE FOR THE SAME
+                                ;	  -- PRINTER INTERFACE WITH EPSON SERIAL AS DEFAULT
+                                ;	  -- SIO #1 ADDED TO SERVE FOR PRINTER THROUGH CH. B
+                                
+                                ;	12-10-81	SUNG WOO LEE
+                                ;	- REMOVED CTC CH #1 INITIALIZATION ROUTINE NOT TO CHANGE
+                                ;	  THE BAUD RATE SET UP BY PROM FOR PRINTER
+                                
+                                ;	TeleVideo Systems Incorporated Proprietary Information.
+                                ;	This listing is supplied under the terms of a license
+                                ;	agreement with TeleVideo Systems Incorporated and may
+                                ;	not be copied nor disclosed except in accordance with
+                                ;	the terms of that agreement.
+                                
+                                
+                                	TITLE 802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 
+                                
+                                
+                                	.Z80
+  0000'                         	CSEG
+                                	.PHASE 0F200H
+                                
+                                ;********************************
+                                ; THE FOLLOWING EQUATES ARE KEPT*
+                                ; ISOLATED FROM THE REST FOR	*
+                                ; PURPOSES OF MOVCPM GENERATION.*
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-1
+
+
+                                ;********************************
+                                
+CPMBASBDOSLN  DC00                          CPMBAS	EQU	$-BDOSLN		; BASE OF CP/M (CCP)
+BDOSCPMBASCCPLEN  E406                          BDOS	EQU	CPMBAS+CCPLEN+6		; ADDRESS OF BDOS ENTRY
+                                
+                                	SUBTTL 802FBOOT.MAC--BOOTSTRAP MODULE
+                                	PAGE
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-2
+802FBOOT.MAC--BOOTSTRAP MODULE
+
+                                
+                         C      	INCLUDE 802FBOOT.MAC
+                         C      
+                         C      ;  **************** BIOS JUMP TABLE *****************
+                         C      
+BIOSBOOT  F200    C3 F264        C      BIOS:	JP	BOOT
+WBOOT  F203    C3 F280        C      	JP	WBOOT
+CONST  F206    C3 F2FF        C      	JP	CONST
+CONIN  F209    C3 F325        C      	JP	CONIN
+CONOUT  F20C    C3 F34F        C      	JP	CONOUT
+LIST  F20F    C3 F388        C      	JP	LIST
+PUNCH  F212    C3 F37C        C      	JP	PUNCH
+READER  F215    C3 F370        C      	JP	READER
+HOME  F218    C3 F41D        C      	JP	HOME
+SELDSK  F21B    C3 F42B        C      	JP	SELDSK
+SETTRK  F21E    C3 F441        C      	JP	SETTRK
+SETSEC  F221    C3 F446        C      	JP	SETSEC
+SETDMA  F224    C3 F44B        C      	JP	SETDMA
+READ  F227    C3 F453        C      	JP	READ
+WRITE  F22A    C3 F467        C      	JP	WRITE
+LISTST  F22D    C3 F3ED        C      	JP	LISTST
+SECTRN  F230    C3 F450        C      	JP	SECTRN
+UNUSED  F233    C3 F417        C      	JP	UNUSED
+UNUSED  F236    C3 F417        C      	JP	UNUSED
+UNUSED  F239    C3 F417        C      	JP	UNUSED
+UNUSED  F23C    C3 F417        C      	JP	UNUSED
+UNUSED  F23F    C3 F417        C      	JP	UNUSED
+                         C      
+                         C      ; COPYRIGHT STATEMENT
+                         C      
+  F242    28 43 29 20    C      	DEFM	'(C) 1981, TELEVIDEO SYSTEMS INC.'
+  F246    31 39 38 31    C      
+  F24A    2C 20 54 45    C      
+  F24E    4C 45 56 49    C      
+  F252    44 45 4F 20    C      
+  F256    53 59 53 54    C      
+  F25A    45 4D 53 20    C      
+  F25E    49 4E 43 2E    C      
+                         C      
+                         C      ; VERSION AND REVISION NO.
+                         C      
+VER  F262    02             C      VER:	DEFB	2
+REV  F263    00             C      REV:	DEFB	0
+                         C      
+                         C      
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-3
+802FBOOT.MAC--BOOTSTRAP MODULE
+
+                         C      ; COME HERE FROM COLDSTART LOADER
+                         C      
+BOOTPROMSW  F264    D3 04          C      BOOT:	OUT	(PROMSW),A	; SHUT PROM OFF (DEBUG)
+CPMBUF  F266    31 0100        C      	LD	SP,CPMBUF+80H	; INITIALIZE STACK POINTER
+SIGNON  F269    21 F7AF        C      	LD	HL,SIGNON	; PRINT SIGNON MESSAGE
+PRTMSG  F26C    CD F6E4        C      	CALL	PRTMSG
+                         C      
+  F26F    AF             C      	XOR	A		; MAKE LOGGED DRIVE 0
+DRIVE  F270    32 F876        C      	LD	(DRIVE),A	; SAVE IT FOR LATER
+LOGDRV  F273    32 0004        C      	LD	(LOGDRV),A
+  F276    3E 15          C      	LD	A,00010101B	; INITIALIZE IOBYTE
+IOBYTE  F278    32 0003        C      	LD	(IOBYTE),A
+HDWINI  F27B    CD F6F5        C      	CALL	HDWINI		; INITIALIZE SYSTEM HARDWARE
+GOCPM  F27E    18 54          C      	JR	GOCPM		; DO MORE INITIALIZATION
+                         C      
+                         C      ; WE JUMP TO HERE WHENEVER THE USER WANTS
+                         C      ; TO RESTART THE SYSTEM, I. E., REREAD CP/M
+                         C      ; WITHOUT MODIFYING THE BIOS
+                         C      
+WBOOTCPMBUF  F280    31 0100        C      WBOOT:	LD	SP,CPMBUF+80H	; INITIALIZE STACK POINTER
+NOTRYS  F283    3E 0A          C      	LD	A,NOTRYS	; NUMBER OF RETRIES FOR BOOT
+BOOTRY  F285    32 F978        C      	LD	(BOOTRY),A	; STORE IT.	
+  F288    AF             C      	XOR	A		; PREVENT BUFFER FLUSH
+HSTACT  F289    32 F983        C      	LD	(HSTACT),A	; CONDITION ON WRITE ERROR
+                         C      
+WBOO10RESDSK  F28C    CD F6AA        C      WBOO10:	CALL	RESDSK		; RESET DISK SUBSYSTEM
+                         C      
+                         C      ; INITIALIZE THE TRANSFER PARAMETERS
+                         C      
+  F28F    0E 00          C      	LD	C,0		; SELECT DRIVE ZERO
+SELDSK  F291    CD F42B        C      	CALL	SELDSK		; FROM WHICH TO BOOT
+CPMBAS  F294    21 DC00        C      	LD	HL,CPMBAS	; INITIAL DMA ADDRESS
+  F297    11 0002        C      	LD	DE,0002H	; D=INITIAL TRACK, E=INITIAL SECTOR
+BDOSLNRECLEN  F29A    06 2C          C      	LD	B,BDOSLN/RECLEN	; LENGTH OF TRANSFER, IN SECTORS
+                         C      
+WBOO20  F29C    C5             C      WBOO20:	PUSH	BC		; SAVE REGISTERS
+  F29D    E5             C      	PUSH	HL
+  F29E    D5             C      	PUSH	DE
+  F29F    4D             C      	LD	C,L		; MOVE TRANSFER ADDRESS TO BC
+  F2A0    44             C      	LD	B,H
+SETDMA  F2A1    CD F44B        C      	CALL	SETDMA		; SET DATA TRANSFER ADDRESS
+  F2A4    4A             C      	LD	C,D
+SETTRK  F2A5    CD F441        C      	CALL	SETTRK		; SET TRACK REGISTER TO D
+  F2A8    4B             C      	LD	C,E
+SETSEC  F2A9    CD F446        C      	CALL	SETSEC		; SET SECTOR REGISTER TO E	
+READ  F2AC    CD F453        C      	CALL	READ		; READ A SECTOR
+WBOO30802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-4
+802FBOOT.MAC--BOOTSTRAP MODULE
+
+  F2AF    28 11          C      	JR	Z,WBOO30	; READ SUCCESSFUL
+  F2B1    D1             C      	POP	DE		; ELSE RETORE REGISTERS
+  F2B2    E1             C      	POP	HL
+  F2B3    C1             C      	POP	BC
+BOOTRY  F2B4    21 F978        C      	LD	HL,BOOTRY	; CHECK ON RETRY SITUATION
+  F2B7    35             C      	DEC	(HL)
+WBOO10  F2B8    20 D2          C      	JR	NZ,WBOO10	; MORE TRIES LEFT.
+BOOMSG  F2BA    21 F7E3        C      	LD	HL,BOOMSG	; PRINT ERROR MESSAGE
+PRTMSG  F2BD    CD F6E4        C      	CALL	PRTMSG
+  F2C0    18 FE          C      	JR	$		; AND DIE.
+                         C      
+WBOO30  F2C2    D1             C      WBOO30:	POP	DE		; ADJUST TRACK AND SECTOR
+  F2C3    1C             C      	INC	E		; BUMP SECTOR NO.
+  F2C4    7B             C      	LD	A,E
+SPT0  F2C5    FE 48          C      	CP	SPT0		; END OF CURRENT TRACK?
+WBOO40  F2C7    38 03          C      	JR	C,WBOO40	; NO.
+  F2C9    1E 00          C      	LD	E,0		; CYCLE THE SECTOR NO.
+  F2CB    14             C      	INC	D		; AND INCREMENT THE TRACK
+                         C      
+WBOO40  F2CC    E1             C      WBOO40:	POP	HL		; RECALL THE TRANSFER ADDRESS
+RECLEN  F2CD    01 0080        C      	LD	BC,RECLEN	; ADD IN A SECTOR
+  F2D0    09             C      	ADD	HL,BC
+  F2D1    C1             C      	POP	BC		; RESTORE SECTOR COUNT
+WBOO20  F2D2    10 C8          C      	DJNZ	WBOO20		; GO READ NEXT SECTOR.	
+                         C      
+                         C      ; CODE SHARED BY BOTH WARM AND COLD STARTS
+                         C      
+GOCPMCPMBUF  F2D4    01 0080        C      GOCPM:	LD	BC,CPMBUF	; INITIALIZE DMA ADDRESS
+SETDMA  F2D7    CD F44B        C      	CALL	SETDMA
+JP  F2DA    3E C3          C      	LD	A,JP		; INITIALIZE LOW MEMORY
+  F2DC    32 0000        C      	LD	(0000H),A
+BIOS  F2DF    21 F203        C      	LD	HL,BIOS+3	; WARM BOOT JUMP ENTRY
+  F2E2    22 0001        C      	LD	(0001H),HL	; STORE IT
+  F2E5    32 0005        C      	LD	(0005H),A
+BDOS  F2E8    21 E406        C      	LD	HL,BDOS		; BDOS ENTRY POINT
+  F2EB    22 0006        C      	LD	(0006H),HL	; STORE IT
+  F2EE    AF             C      	XOR	A		; CLEAR SERIAL PRINTER BUFFER COUNT
+UL1CNT  F2EF    32 FA91        C      	LD	(UL1CNT),A	; ON COLD OR WARM START
+UNACNT  F2F2    32 F985        C      	LD	(UNACNT),A	; UNALLOCATED SECTOR COUNT
+HSTACT  F2F5    32 F983        C      	LD	(HSTACT),A	; BUFFER INACTIVE
+LOGDRV  F2F8    3A 0004        C      	LD	A,(LOGDRV)	; PASS LOGGED DRIVE NO.
+  F2FB    4F             C      	LD	C,A		; IN REG-C
+CPMBAS  F2FC    C3 DC00        C      	JP	CPMBAS		; TO CCP
+                         C      
+                         C      ; END OF 802FBOOT.MAC
+                                
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-5
+802FCONS.MAC--CONSOLE I/O MODULE
+
+                                	SUBTTL 802FCONS.MAC--CONSOLE I/O MODULE
+                                	PAGE
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-6
+802FCONS.MAC--CONSOLE I/O MODULE
+
+                                
+                         C      	INCLUDE 802FCONS.MAC
+                         C      
+                         C      ; TEST THE STATUS OF THE CONSOLE INPUT TO
+                         C      ; SEE IF A CHARACTER IS AVAILABLE.
+                         C      ;	EXIT:	A=0FFH	->	CHARACTER AVAILABLE
+                         C      ;		A=0	->	NO CHARACTER
+                         C      
+CONSTIODISP  F2FF    CD F6FF        C      CONST:	CALL	IODISP		; DIRECT I/O TO PROPER DEVICE
+  F302    00             C      	DEFB	0		; CONSOLE POSITION IN IOBYTE
+TTYST  F303    F30B           C      	DEFW	TTYST		; CONSOLE PRINTER DEVICE
+CRTST  F305    F31C           C      	DEFW	CRTST		; CONSOLE CRT DEVICE
+BATST  F307    F41B           C      	DEFW	BATST		; CONSOLE BATCH DEVICE
+UC1ST  F309    F41B           C      	DEFW	UC1ST		; USER DEFINED CONSOLE
+                         C      
+                         C      ; PRINTER STATUS ROUTINE FOR SERIAL
+                         C      ; INTERFACE WITH EPSON AND TI
+                         C      ; SIO #1 CHANNEL B
+                         C      
+TTYST  F30B    3E 10          C      TTYST:	LD	A,00010000B	; RESET EXTRN/STATUS COMMAND
+SIOBC1  F30D    D3 23          C      	OUT	(SIOBC1),A	; SEND OUT
+SIOBC1  F30F    DB 23          C      	IN	A,(SIOBC1)	; READ SIO STATUS
+  F311    E6 24          C      	AND	00100100B	; CHECK TRANSMITT READY AND CTS
+  F313    FE 24          C      	CP	00100100B	; READY TO SEND?
+TTYS1  F315    28 02          C      	JR	Z,TTYS1		; YES, CODE FOR SET READY CONDITION
+  F317    AF             C      	XOR	A		; NO, SET NOT READY CONDITION
+  F318    C9             C      	RET
+                         C      
+TTYS1  F319    AF             C      TTYS1:	XOR	A
+  F31A    3D             C      	DEC	A		; A = FF
+  F31B    C9             C      	RET
+                         C      
+                         C      ; CONSOLE STATUS ROUTINE FOR STANDARD
+                         C      ; CRT TERMINAL DEVICE, SIO #0 CHANNEL B.
+                         C      
+CRTSTSIOBC0  F31C    DB 0F          C      CRTST:	IN	A,(SIOBC0)	; READ SIO STATUS
+RCVRDY  F31E    CB 47          C      	BIT	RCVRDY,A	; CHARACTER AVAILABLE?
+  F320    3E 00          C      	LD	A,0
+  F322    C8             C      	RET	Z		; NO. A = 0
+                         C      
+  F323    3D             C      	DEC	A		; YES. A = FFH
+  F324    C9             C      	RET
+                         C      
+                         C      ; GRAB A CHARACTER FROM CONSOLE INPUT.
+                         C      ;	EXIT:	A=RETURNED CHARACTER
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-7
+802FCONS.MAC--CONSOLE I/O MODULE
+
+                         C      
+CONINIODISP  F325    CD F6FF        C      CONIN:	CALL	IODISP		; DIRECT I/O TO PROPER DEVICE
+  F328    00             C      	DEFB	0		; CONSOLE POSITION IN IOBYTE
+TTYIN  F329    F331           C      	DEFW	TTYIN		; CONSOLE PRINTER DEVICE
+CRTIN  F32B    F332           C      	DEFW	CRTIN		; CONSOLE CRT DEVICE
+BATIN  F32D    F418           C      	DEFW	BATIN		; CONSOLE BATCH DEVICE
+UC1IN  F32F    F418           C      	DEFW	UC1IN		; USER DEFINED CONSOLE
+                         C      
+                         C      ; JUST RETURN FOR NOW
+                         C      
+TTYIN  F331    C9             C      TTYIN:	RET
+                         C      
+                         C      ; CONSOLE INPUT ROUTINE FOR
+                         C      ; STANDARD CRT TERMINAL DEVICE.
+                         C      ; SIO CHANNEL B.
+                         C      ; MOTOR AND LIGHT OFF IN HALF A SECOND
+                         C      ; WHEN THERE IS NO INPUT ON CONSOLE
+                         C      
+CRTIN  F332    C5             C      CRTIN:	PUSH	BC
+  F333    01 8000        C      	LD	BC,8000H	; TIME-OUT FOR 1/2 SECOND
+CRT20CRTST  F336    CD F31C        C      CRT20:	CALL	CRTST		; CHECK THE STATUS
+CRT10  F339    20 0E          C      	JR	NZ,CRT10	; SKIP 
+  F33B    0B             C      	DEC	BC		; COUNT DOWN
+  F33C    78             C      	LD	A,B		; BC REACHED ZERO?
+  F33D    B1             C      	OR	C
+CRT20  F33E    20 F6          C      	JR	NZ,CRT20	; NO, LOOP BACK
+  F340    3E 00          C      	LD	A,0		; MOTOR AND LIGHT OFF
+FDD  F342    D3 18          C      	OUT	(FDD),A		; SEND OUT
+MOTFLG  F344    32 F878        C      	LD	(MOTFLG),A	; MOTOR ON-OFF FLAG
+CRT20  F347    18 ED          C      	JR	CRT20		; LOOP UNTIL WE GET A CHARACTER
+CRT10SIOBD0  F349    DB 0D          C      CRT10:	IN	A,(SIOBD0)	; FETCH THE CHARACTER
+  F34B    E6 7F          C      	AND	7FH		; STRIP OFF PARITY BIT 
+  F34D    C1             C      	POP	BC
+  F34E    C9             C      	RET
+                         C      
+                         C      ; OUTPUT A CHARACTER TO THE CONSOLE.
+                         C      ;	ENTRY:	C=CHARACTER TO BE OUTPUT
+                         C      
+CONOUTIODISP  F34F    CD F6FF        C      CONOUT:	CALL	IODISP		; DIRECT I/O TO PROPER DEVICE
+  F352    00             C      	DEFB	0		; CONSOLE POSITION IN IOBYTE
+TTYOUT  F353    F35B           C      	DEFW	TTYOUT		; CONSOLE PRINTER DEVICE
+CRTOUT  F355    F366           C      	DEFW	CRTOUT		; CONSOLE CRT DEVICE
+BATOUT  F357    F418           C      	DEFW	BATOUT		; CONSOLE BATCH DEVICE
+UC1OUT  F359    F418           C      	DEFW	UC1OUT		; USER DEFINED CONSOLE
+                         C      
+                         C      ; OUTPUT ROUTINE FOR SERIAL EPSON AND TI PRINTER
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-8
+802FCONS.MAC--CONSOLE I/O MODULE
+
+                         C      ; SIO CHANNEL A.
+                         C      
+TTYOUTTTYST  F35B    CD F30B        C      TTYOUT:	CALL	TTYST		; CHECK STATUS OF PRINTER
+TTYOUT  F35E    28 FB          C      	JR	Z,TTYOUT	; NOT READY, LOOP BACK
+  F360    79             C      	LD	A,C		; GET CHARACTER IN REG. C
+  F361    E6 7F          C      	AND	7FH		; STRIP OFF PARITY
+SIOBD1  F363    D3 21          C      	OUT	(SIOBD1),A	; SEND OUT
+  F365    C9             C      	RET
+                         C      
+                         C      ; OUTPUT ROUTINE FOR STANDARD
+                         C      ; CRT TERMINAL DEVICE, SIO
+                         C      ; CHANNEL B.
+                         C      
+CRTOUTSIOBC0  F366    DB 0F          C      CRTOUT:	IN	A,(SIOBC0)	; CHECK STATUS OF TRANSMITTER
+TRXRDY  F368    CB 57          C      	BIT	TRXRDY,A	; TRANSMITTER BUFFER EMPTY?
+CRTOUT  F36A    28 FA          C      	JR	Z,CRTOUT	; NOT YET.
+  F36C    79             C      	LD	A,C		; TRANSFER THE CHARACTER
+SIOBD0  F36D    D3 0D          C      	OUT	(SIOBD0),A	; OUTPUT THE CHARACTER TO SIO
+  F36F    C9             C      	RET
+                         C      
+                         C      ; PAPER TAPE READER ROUTINE,
+                         C      ; MOSTLY UNUSED.
+                         C      
+READERIODISP  F370    CD F6FF        C      READER:	CALL	IODISP		; DIRECT I/O TO PROPER DEVICE
+  F373    02             C      	DEFB	2		; POSITION OF READER IN IOBYTE
+TTYIN  F374    F331           C      	DEFW	TTYIN		; STANDARD TELETYPE DEVICE
+PTRRDR  F376    F418           C      	DEFW	PTRRDR		; HIGH SPEED PAPER TAPE READER
+UR1RDR  F378    F418           C      	DEFW	UR1RDR		; USER DEFINED READER #1
+UR2RDR  F37A    F418           C      	DEFW	UR2RDR		; USER DEFINED READER #2
+                         C       	
+                         C      
+                         C      ; PAPER TAPE PUNCH ROUTINE,
+                         C      ; CURRENTLY DUMMIED OUT,
+                         C      ; PRETTY MUCH.
+                         C      
+PUNCHIODISP  F37C    CD F6FF        C      PUNCH:	CALL	IODISP		; DIRECT I/O TO PROPER DEVICE
+  F37F    04             C      	DEFB	4		; PUNCH POSITION IN IOBYTE
+TTYOUT  F380    F35B           C      	DEFW	TTYOUT		; TELETYPE OUTPUT
+PTPPUN  F382    F418           C      	DEFW	PTPPUN		; HIGH SPEED PUNCH DEVICE
+UP1PUN  F384    F418           C      	DEFW	UP1PUN		; USER DEFINED PUNCH #1
+UP2PUN  F386    F418           C      	DEFW	UP2PUN		; USER DEFINED PUNCH #2
+                         C      
+                         C      ; SEND A CHARACTER TO THE PARALLEL PORT.
+                         C      ; THIS PORT HAS A STANDARD CENTRONICS INTERFACE.
+                         C      ;	ENTRY:		C=CHARACTER TO BE OUTPUT
+                         C      
+LISTIODISP802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-9
+802FCONS.MAC--CONSOLE I/O MODULE
+
+  F388    CD F6FF        C      LIST:	CALL	IODISP		; DIRECT I/O TO PROPER DEVICE
+  F38B    06             C      	DEFB	6		; LIST POSITION IN IOBYTE
+TTYOUT  F38C    F35B           C      	DEFW	TTYOUT		; OUTPUT TO TELETYPE DEVICE
+CRTOUT  F38E    F366           C      	DEFW	CRTOUT		; OUTPUT TO CRT DEVICE
+LPTLST  F390    F394           C      	DEFW	LPTLST		; LINE PRINTER DEVICE
+UL1LST  F392    F3A9           C      	DEFW	UL1LST		; USER DEFINED PRINTING DEVICE
+                         C      
+                         C      ; THIS IS THE PRINTER OUTPUT ROUTINE
+                         C      ; FOR THE CENTRONICS PARALLEL DEVICE.
+                         C      
+LPTLSTLPTLSS  F394    CD F3F9        C      LPTLST:	CALL	LPTLSS		; CHECK STATUS
+LPTLST  F397    20 FB          C      	JR	NZ,LPTLST	; LOOP UNTIL PRINTER READY
+  F399    79             C      	LD	A,C		; LOAD THE CHARACTER
+PIOBD  F39A    D3 1D          C      	OUT	(PIOBD),A	; INTO PIO CHANNEL B DATA REG.
+PIOAD  F39C    DB 1C          C      	IN	A,(PIOAD)	; READ PRINTER CONTROL LINES
+STROBE  F39E    CB 87          C      	RES	STROBE,A	; PULSE THE STROBE LINE
+PIOAD  F3A0    D3 1C          C      	OUT	(PIOAD),A	; TO INDICATE THAT DATA IS
+PIOAD  F3A2    DB 1C          C      	IN	A,(PIOAD)	; VALID IN CHANNEL B DATA PORT
+STROBE  F3A4    CB C7          C      	SET	STROBE,A	; RAISE STROBE LINE AGAIN
+PIOAD  F3A6    D3 1C          C      	OUT	(PIOAD),A	; COMPLETE STROBE SIGNAL
+  F3A8    C9             C      	RET
+                         C      
+                         C      
+                         C       
+                         C      ; HERE IS THE SERIAL PRINTER DRIVER, WHICH EXPECTS
+                         C      ; THE DEVICE ON THE OTHER END TO SUPPORT AN ETX/ACK
+                         C      ; PROTOCOL.  PORT USED IS SIO CHANNEL A.
+                         C      
+UL1LSTUL1SIZ  F3A9    3A F8A8        C      UL1LST:	LD	A,(UL1SIZ)	; SIZE OF PRINTER BUFFER.
+  F3AC    47             C      	LD	B,A		; FOR LATER.
+  F3AD    B7             C      	OR	A		; CLEAR CARRY
+  F3AE    1F             C      	RRA			; DIVIDE BY 2
+  F3AF    5F             C      	LD	E,A		; E <- UL1SIZ/2
+UL1CNT  F3B0    21 FA91        C      	LD	HL,UL1CNT	; CURRENT BUFFER COUNT
+  F3B3    34             C      	INC	(HL)		; BUMP IT.
+                         C       
+UL1L10SIOBC1  F3B4    DB 23          C      UL1L10:	IN	A,(SIOBC1)	; READ STATUS 
+RCVRDY  F3B6    CB 47          C      	BIT	RCVRDY,A	; DO WE HAVE AN INPUT CHARACTER?
+UL1L20  F3B8    28 08          C      	JR	Z,UL1L20	; NO. SEND CHARACTER.
+SIOBD1  F3BA    DB 21          C      	IN	A,(SIOBD1)	; GRAB THE CHARACTER.
+  F3BC    E6 7F          C      	AND	7FH		; STIP PARITY.
+ASCACK  F3BE    FE 06          C      	CP	ASCACK		; IS IT ACK?
+UL1L60  F3C0    28 22          C      	JR	Z,UL1L60	; YES, PROCESS IT.
+UL1L20  F3C2    7B             C      UL1L20:	LD	A,E		; GET UL1SIZ/2
+  F3C3    BE             C      	CP	(HL)		; IS BUFFER HALF-FULL?
+UL1L40  F3C4    20 0C          C      	JR	NZ,UL1L40	; NO, NO NEED FOR ETX.
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-10
+802FCONS.MAC--CONSOLE I/O MODULE
+
+                         C       
+UL1L30SIOBC1  F3C6    DB 23          C      UL1L30:	IN	A,(SIOBC1)	; PREPARE FOR OUTPUT.
+TRXRDY  F3C8    CB 57          C      	BIT	TRXRDY,A	; CAN WE OUTPUT?
+UL1L30  F3CA    28 FA          C      	JR	Z,UL1L30	; NOT YET.
+ASCETX  F3CC    3E 03          C      	LD	A,ASCETX	; SEND OFF THE END-OF-
+SIOBD1  F3CE    D3 21          C      	OUT	(SIOBD1),A	; BLOCK CHARACTER.
+UL1L50  F3D0    18 06          C      	JR	UL1L50		; NOW OUTPUT THE CHARACTER
+                         C       
+UL1L40  F3D2    78             C      UL1L40:	LD	A,B		; ORIGINAL BUFFER SIZE
+  F3D3    BE             C      	CP	(HL)		; CHECK FOR FULL AND OVERFLOW.
+UL1L30  F3D4    28 F0          C      	JR	Z,UL1L30	; FULL, SO SEND ANOTHER ETX
+UL1L10  F3D6    38 DC          C      	JR	C,UL1L10	; OVERFLOW, WAIT FOR ACK.
+                         C       
+UL1L50SIOBC1  F3D8    DB 23          C      UL1L50:	IN	A,(SIOBC1)	; THIS IS THE REAL OUTPUT
+TRXRDY  F3DA    CB 57          C      	BIT	TRXRDY,A	; ROUTINE AND EXIT
+UL1L50  F3DC    28 FA          C      	JR	Z,UL1L50	; LOOP UNTIL TRANSMITTER READY.
+  F3DE    79             C      	LD	A,C		; CHARACTER HAS BEEN IN REG. C
+  F3DF    E6 7F          C      	AND	7FH		; ALL THIS TIME. STRIP PARITY.
+SIOBD1  F3E1    D3 21          C      	OUT	(SIOBD1),A	; SHIP IT!
+  F3E3    C9             C      	RET			; ONLY EXIT POINT.
+                         C      
+UL1L60  F3E4    7E             C      UL1L60:	LD	A,(HL)		; DID WE EVER SEND AN ETX?
+  F3E5    93             C      	SUB	E		; I.E., IS BUFFER > = HALF FULL?
+UL1L70  F3E6    28 02          C      	JR	Z,UL1L70	; YES.
+UL1L50  F3E8    38 EE          C      	JR	C,UL1L50	; NO, SPURIOUS ACK.
+                         C       
+UL1L70  F3EA    77             C      UL1L70:	LD	(HL),A		; ADJUST THE BUFFER COUNT
+UL1L50  F3EB    18 EB          C      	JR	UL1L50		; AND SEND THE CHARACTER.
+                         C       
+                         C      ; TEST THE STATUS OF THE PRINTER.
+                         C      ; THEN RETURN NOT READY FLAG.
+                         C      ;	EXIT:		A=0	->	PRINTER IS NOT READY
+                         C      ;			A=0FFH	->	PRINTER IS READY
+                         C      
+LISTSTIODISP  F3ED    CD F6FF        C      LISTST:	CALL	IODISP		; DIRECT I/O TO PROPER DEVICE
+  F3F0    06             C      	DEFB	6		; LIST POSITION IN IOBYTE
+TTYST  F3F1    F30B           C      	DEFW	TTYST		; STATUS OF TELETYPE DEVICE
+CRTST  F3F3    F31C           C      	DEFW	CRTST		; STATUS OF CRT DEVICE
+LPTLSS  F3F5    F3F9           C      	DEFW	LPTLSS		; STATUS OF LINE PRINTER DEVICE
+UL1LSS  F3F7    F404           C      	DEFW	UL1LSS		; STATUS OF USER DEFINED PRINTING DEVICE
+                         C      
+                         C      
+                         C      ; PARALLEL PRINTER STATUS CHECK.
+                         C      ; RETURNS PRINTER NOT READY BECAUSE:
+                         C      ; 1) IT IS OUT OF PAPER
+                         C      ; 2) IT IS BUSY
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-11
+802FCONS.MAC--CONSOLE I/O MODULE
+
+                         C      ; 3) A FAULT OCCURED
+                         C       
+LPTLSSPIOAD  F3F9    DB 1C          C      LPTLSS:	IN	A,(PIOAD)	; READ PRINTER STATUS
+                         C      ;	AND	PIOMSK		; MASK OFF DON'T CARE BITS
+                         C      ;	XOR	PIOERR		; ERROR MASK, PRINTER READY?
+                         C      ;	JR	NZ,LPTS10	; NO.
+                         C      ;	DEC	A		; YES, RETURN FF IN A
+                         C      
+PRTBSY  F3FB    CB 6F          C      	BIT	PRTBSY,A	; TEST PRINTER BUSY BIT
+  F3FD    3E 00          C      	LD	A,0
+  F3FF    C0             C      	RET	NZ
+  F400    2F             C      	CPL			; SET A = FFH AND ZERO FLAG = 1
+  F401    C9             C      	RET
+                         C      
+LPTS10  F402    AF             C      LPTS10:	XOR	A		; INDICATE NOT READY
+  F403    C9             C      	RET			; BY RETURNING 0 IN A
+                         C      
+                         C      ; CHECK THE STATUS OF SERIAL PRINTER,
+                         C      ; CP/M UL1 DEVICE.
+                         C      
+UL1LSSUL1CNT  F404    21 FA91        C      UL1LSS:	LD	HL,UL1CNT	; CURRENT BUFFER COUNT
+UL1SIZ  F407    3A F8A8        C      	LD	A,(UL1SIZ)	; MAX COUNT.
+  F40A    BE             C      	CP	(HL)		; ROOM FOR MORE CHARACTER?
+  F40B    3E FF          C      	LD	A,0FFH		; ANTICIPATE AFFIRMATIVE.
+  F40D    C0             C      	RET	NZ		; LISTER IS READY.
+                         C       
+SIOBC1  F40E    DB 23          C      	IN	A,(SIOBC1)	; OTHERWISE SEE IF WE HAVE
+RCVRDY  F410    CB 47          C      	BIT	RCVRDY,A	; AN INPUT CHARACTER READY.
+  F412    3E FF          C      	LD	A,0FFH		; ANTICIPATE AFFIRMATIVE AGAIN.
+  F414    C0             C      	RET	NZ		; WE ARE ASSUMING CHAR. IS AN ACK.
+                         C       
+  F415    AF             C      	XOR	A		; WE MUST NOT BE READY YET
+  F416    C9             C      	RET
+                         C      
+                         C      ; FOLLOWING IS JUST A GENERAL-PURPOSE
+                         C      ; DUMMY ROUTINE, USED FOR UNDEFINED BIOS
+                         C      ; HOOKS, AND UNUSED IOBYTE DRIVERS.
+                         C      
+UNUSED  F417    C9             C      UNUSED:	RET			; JUST RETURN FOR NOW
+                         C      
+                         C      ; PAPER TAPE READER, PUNCH AND CONSOLE
+                         C      ; DUMMY ROUTINES.  USER MAY FILL OUT LATER.
+                         C      
+BATIN  F418                   C      BATIN:
+UC1IN  F418                   C      UC1IN:
+                         C      
+BATOUT802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-12
+802FCONS.MAC--CONSOLE I/O MODULE
+
+  F418                   C      BATOUT:
+UC1OUT  F418                   C      UC1OUT:
+                         C      
+PTRRDR  F418                   C      PTRRDR:
+UR1RDR  F418                   C      UR1RDR:
+UR2RDR  F418                   C      UR2RDR:
+                         C      
+PTPPUN  F418                   C      PTPPUN:
+UP1PUN  F418                   C      UP1PUN:
+UP2PUN  F418                   C      UP2PUN:
+                         C      
+  F418    3E 1A          C      	LD	A,1AH		; RETURN EOF.
+  F41A    C9             C      	RET
+                         C      
+                         C      ; DUMMY CONSOLE STATUS ROUTINES 
+                         C      
+BATST  F41B                   C      BATST:
+UC1ST  F41B                   C      UC1ST:
+  F41B    AF             C      	XOR	A		; ALWAYS BUSY
+  F41C    C9             C      	RET
+                         C      
+                         C      ; END OF 802FCONS.MAC
+                                
+                                	SUBTTL 802FDISK.MAC--DISK I/O MODULE
+                                	PAGE
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-13
+802FDISK.MAC--DISK I/O MODULE
+
+                                
+                         C      	INCLUDE 802FDISK.MAC
+                         C      
+                         C      ; HOME THE HEADS TO TRACK 0
+                         C      
+HOMEHSTWRT  F41D    3A F984        C      HOME:	LD	A,(HSTWRT)	; CHECK WRITE PENDING DATA IN BUFFER
+  F420    B7             C      	OR	A
+HOMED  F421    20 03          C      	JR	NZ,HOMED	; IF WRITE DATA PENDING THEN SKIP
+                         C      
+HSTACT  F423    32 F983        C      	LD	(HSTACT),A
+                         C      
+HOMED  F426    AF             C      HOMED:	XOR	A
+SEKTRK  F427    32 F97D        C      	LD	(SEKTRK),A	; RESET SEEK TRACK TO ZERO
+  F42A    C9             C      	RET
+                         C      
+                         C      ; DISK SELECT ENTRY ROUTINE
+                         C      ; ACCEPTS: C = DRIVE SELECT (WITH C=0 FOR SELECT DRIVE"A")
+                         C      ; RETURNS: HL = DPB POINTER OF DRIVE SELECT (IF C=VALID DRIVE NUMBER)
+                         C      ;          HL = 0H IF (C=INVALID DRIVE NUMBER)
+                         C      
+SELDSK  F42B    21 0000        C      SELDSK:	LD	HL,0		; SET HL = ERROR RETURN CODE
+  F42E    79             C      	LD	A,C
+SEKDSK  F42F    32 F97C        C      	LD	(SEKDSK),A	; SAVE DRIVE NUMBER
+MAXDRV  F432    FE 02          C      	CP	MAXDRV+1	; CHECK FOR VALID DRIVE
+  F434    D0             C      	RET	NC		; EXIT WITH HL = 0H
+                         C      
+                         C      ; DRIVE NUMBER IS IN PROPER RANGE
+                         C      
+  F435    6F             C      	LD	L,A
+  F436    26 00          C      	LD	H,0
+  F438    29             C      	ADD	HL,HL
+  F439    29             C      	ADD	HL,HL
+  F43A    29             C      	ADD	HL,HL
+  F43B    29             C      	ADD	HL,HL		; MULTIPLY BY 16
+DPBASE  F43C    11 F879        C      	LD	DE,DPBASE	; BASE OF PARAMETER BLOCK
+  F43F    19             C      	ADD	HL,DE		; HL=.DPB(CURDSK)
+  F440    C9             C      	RET
+                         C      
+                         C      ; SETTRK -- SET READ/WRITE TRACK
+                         C      ; ACCEPTS: C = TRACK NUMBER
+                         C      
+SETTRK  F441    79             C      SETTRK:	LD	A,C
+SEKTRK  F442    32 F97D        C      	LD	(SEKTRK),A
+  F445    C9             C      	RET
+                         C      
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-14
+802FDISK.MAC--DISK I/O MODULE
+
+                         C      ; SETSEC -- SET READ/WRITE SECTOR
+                         C      ; ACCEPTS: C = SECTOR NUMBER
+                         C      
+SETSEC  F446    79             C      SETSEC:	LD	A,C
+SEKSEC  F447    32 F97E        C      	LD	(SEKSEC),A
+  F44A    C9             C      	RET
+                         C      
+                         C      ; SETDMA -- SET READ/WRITE DMA BUFFER ADDRESS
+                         C      
+SETDMADMAADR  F44B    ED 43 F98D     C      SETDMA:	LD	(DMAADR),BC
+  F44F    C9             C      	RET
+                         C      
+                         C      ; SECTRAN -- TRANSLATE SECTOR
+                         C      ; ACCEPTS: BC = LOGICAL SECTOR
+                         C      ;	   DE = TRANSLATIN TABLE ADDRESS	
+                         C      ; RETURNS: HL = PHYSICAL SECTOR
+                         C      
+SECTRN  F450    60             C      SECTRN:	LD	H,B
+  F451    69             C      	LD	L,C
+  F452    C9             C      	RET
+                         C      
+                         C      ; READ CP/M SECTOR ENTRY POINT
+                         C      ; THIS ROUTINE READ THE SELECTED CP/M SECTOR
+                         C      ; INTO SELECTED DMA BUFFER POINTER
+                         C      
+READ  F453    AF             C      READ:	XOR	A	
+UNACNT  F454    32 F985        C      	LD	(UNACNT),A
+  F457    3E 01          C      	LD	A,1
+READOP  F459    32 F98B        C      	LD	(READOP),A		; SET READ OPERATION
+RSFLAG  F45C    32 F98A        C      	LD	(RSFLAG),A		; MUST READ DATA
+WRUAL  F45F    3E 02          C      	LD	A,WRUAL
+WRTYPE  F461    32 F98C        C      	LD	(WRTYPE),A		; TREAT AS UNALLOC
+RDWTCM  F464    C3 F4CC        C      	JP	RDWTCM			; PERFORM THE READ
+                         C      
+                         C      ; WRITE ROUTINE ENTRY POINT
+                         C      ; THIS ROUTINE WRITE THE SELECTED DMA BUUFER POINTER
+                         C      ; INTO SELECTED CP/M SECTOR
+                         C      
+WRITE  F467    AF             C      WRITE:	XOR	A
+READOP  F468    32 F98B        C      	LD	(READOP),A	; SET OPERATION TO WRITE
+  F46B    79             C      	LD	A,C		; SAVE WRITE TYPE
+WRTYPE  F46C    32 F98C        C      	LD	(WRTYPE),A
+WRUAL  F46F    FE 02          C      	CP	WRUAL		; WRITE UNALLOCATED?
+WRIT10  F471    20 17          C      	JR	NZ,WRIT10	; CHECK FOR UNALLOC
+                         C      
+                         C      ; WRITING TO AN UNALLOCATED BLOCK
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-15
+802FDISK.MAC--DISK I/O MODULE
+
+                         C      
+BLKSIZ  F473    3E 10          C      	LD	A,BLKSIZ/128	; NUMBER OF SECTORS/BLOCK
+UNACNT  F475    32 F985        C      	LD	(UNACNT),A	; UNALLOCATED SECTORS REMAINING
+SEKDSK  F478    3A F97C        C      	LD	A,(SEKDSK)	; CP/M DRIVE.
+UNADSK  F47B    32 F986        C      	LD	(UNADSK),A	; TO UNALLOCATED DISK
+SEKTRK  F47E    3A F97D        C      	LD	A,(SEKTRK)	; CP/M TRACK NO.
+UNATRK  F481    32 F987        C      	LD	(UNATRK),A
+SEKSEC  F484    3A F97E        C      	LD	A,(SEKSEC)	; CP/M SECTOR NO.
+UNASEC  F487    32 F988        C      	LD	(UNASEC),A
+                         C      
+                         C      ; CHECK FOR WRITE TO UNALLOCATED SECTOR
+                         C      
+WRIT10UNACNT  F48A    3A F985        C      WRIT10:	LD	A,(UNACNT)	; ANY UNALLOCATED SECTOR REMAIN?
+  F48D    B7             C      	OR	A
+WRIT30  F48E    28 34          C      	JR	Z,WRIT30	; SKIP IF NOT
+                         C      
+                         C      ; MORE UNALLOCATED SECTORS IN THIS BLOCK
+                         C      
+  F490    3D             C      	DEC	A		; UNACNT = UNACNT-1
+UNACNT  F491    32 F985        C      	LD	(UNACNT),A
+SEKDSK  F494    3A F97C        C      	LD	A,(SEKDSK)	; GET SEEK DISK INTO A
+UNADSK  F497    21 F986        C      	LD	HL,UNADSK
+  F49A    BE             C      	CP	(HL)		; SEEK.DSK = UNALL.DSK?
+WRIT30  F49B    20 27          C      	JR	NZ,WRIT30	; SKIP IF NOT
+                         C      
+                         C      ; DISKS ARE THE SAME
+                         C      
+SEKTRK  F49D    3A F97D        C      	LD	A,(SEKTRK)	;  CP/M TRACK NO.	
+UNATRK  F4A0    21 F987        C      	LD	HL,UNATRK	;  UNALLOCATED TRACK NO.
+  F4A3    BE             C      	CP	(HL)		; SEEK.TRK = UNALL.TRK?
+WRIT30  F4A4    20 1E          C      	JR	NZ,WRIT30	; SKIP IF NOT
+                         C      
+                         C      ; TRACKS ARE THE SAME
+                         C      
+SEKSEC  F4A6    3A F97E        C      	LD	A,(SEKSEC)	; GET SEEK SECTOR INTO A
+UNASEC  F4A9    21 F988        C      	LD	HL,UNASEC
+  F4AC    BE             C      	CP	(HL)		; SEEK.SEC = UNALL.SEC?
+WRIT30  F4AD    20 15          C      	JR	NZ,WRIT30	; SKIP IF NOT
+                         C      
+                         C      ; MATCH, MOVE "UNASEC" TO NEXT SECTOR FOR FUTURE REF.
+                         C      
+  F4AF    34             C      	INC	(HL)		; UNASEC = UNASEC+1
+  F4B0    7E             C      	LD	A,(HL)
+CPMSPT  F4B1    FE 48          C      	CP	CPMSPT		; CHECK END OF SECTOR IN CUR.TRACK?
+WRIT20  F4B3    38 09          C      	JR	C,WRIT20	; SKIP IF NO OVERFLOW
+                         C      
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-16
+802FDISK.MAC--DISK I/O MODULE
+
+                         C      ; OVERFLOW TO NEXT TRACK
+                         C      
+  F4B5    36 00          C      	LD	(HL),0		; RESET SECTOR
+UNATRK  F4B7    3A F987        C      	LD	A,(UNATRK)
+  F4BA    3C             C      	INC	A
+UNATRK  F4BB    32 F987        C      	LD	(UNATRK),A	; UNATRK = UNATRK+1
+                         C      
+                         C      ; MATCH FOUND, MARK AS UNNECESSARY READ
+                         C      
+WRIT20  F4BE    AF             C      WRIT20:	XOR	A
+RSFLAG  F4BF    32 F98A        C      	LD	(RSFLAG),A	; SET PRE-READ FLAG = NO
+RDWTCM  F4C2    18 08          C      	JR	RDWTCM		; PERFORM WRITE CP/M SECTOR
+                         C      
+                         C      ; NOT AN UNALLOCATED SECTOR, REQUIRES PRE-READ
+                         C      
+WRIT30  F4C4    AF             C      WRIT30:	XOR	A
+UNACNT  F4C5    32 F985        C      	LD	(UNACNT),A	; RESET UNALLOC. COUNTER = 0
+  F4C8    3C             C      	INC	A
+RSFLAG  F4C9    32 F98A        C      	LD	(RSFLAG),A	; SET PRE-READ FLAG = YES.
+                         C      
+                         C      ; COMMON CODE FOR READ AND WRITE ROUTINE
+                         C      
+RDWTCM  F4CC    AF             C      RDWTCM:	XOR	A
+ERFLAG  F4CD    32 F989        C      	LD	(ERFLAG),A	; RESET ERROR FLAG
+SEKSEC  F4D0    3A F97E        C      	LD	A,(SEKSEC)	; CONVERT SEEEK SECTOR TO HOST SECTOR
+  F4D3    B7             C      	OR	A		; CLEAR CARRY FLAG
+  F4D4    1F             C      	RRA
+SEKHST  F4D5    32 F982        C      	LD	(SEKHST),A	; TEMPORARY SECTOR NO.
+                         C      
+                         C      ; ACTIVE HOST SECTOR?
+                         C      
+HSTACT  F4D8    21 F983        C      	LD	HL,HSTACT
+  F4DB    7E             C      	LD	A,(HL)
+  F4DC    36 01          C      	LD	(HL),1		; ALWAY BECOMES 1
+  F4DE    B7             C      	OR	A
+RDWT20  F4DF    28 25          C      	JR	Z,RDWT20	; FILL BUFFER IN ACTIVE FLAG = 0
+                         C      
+                         C      ; HOST BUFFER ACTIVE, SAME AS SEEK BUFFER?
+                         C      
+SEKDSK  F4E1    3A F97C        C      	LD	A,(SEKDSK)
+HSTDSK  F4E4    21 F97F        C      	LD	HL,HSTDSK
+  F4E7    BE             C      	CP	(HL)		; SAME DISK?
+RDWT10  F4E8    20 12          C      	JR	NZ,RDWT10	; SKIP IF NOT MATCH
+                         C      
+                         C      ; SAME DISK, SAME TRACK?
+                         C      
+SEKTRK802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-17
+802FDISK.MAC--DISK I/O MODULE
+
+  F4EA    3A F97D        C      	LD	A,(SEKTRK)
+HSTTRK  F4ED    21 F980        C      	LD	HL,HSTTRK
+  F4F0    BE             C      	CP	(HL)		; SAME TRACK?
+RDWT10  F4F1    20 09          C      	JR	NZ,RDWT10	; SKIP IF NOT MATCH
+                         C      
+                         C      ; SAME DISK, SAME TRACK, SAME BUFFER?
+                         C      
+SEKHST  F4F3    3A F982        C      	LD	A,(SEKHST)
+HSTSEC  F4F6    21 F981        C      	LD	HL,HSTSEC
+  F4F9    BE             C      	CP	(HL)
+RDWT40  F4FA    28 2A          C      	JR	Z,RDWT40	; SKIP IF MATCH
+                         C      
+                         C      ; PROPER DISK, BUT NOT CORRECT SECTOR
+                         C      
+RDWT10HSTWRT  F4FC    3A F984        C      RDWT10:	LD	A,(HSTWRT)	; WRITE DATA PENDING IN BUFFER?
+  F4FF    B7             C      	OR	A
+RDWT20  F500    28 04          C      	JR	Z,RDWT20	; NO NEED TO FLUSH BUFFER
+WRITEH  F502    CD F566        C      	CALL	WRITEHST	; IF YES, THEN WRITE DATA TO DISK
+  F505    C0             C      	RET	NZ		; ERROR IN WRITING TO DISK.
+                         C      
+                         C      ; MAY HAVE TO PRE-READ DATA TO HOST BUFFER
+                         C      
+RDWT20SEKDSK  F506    3A F97C        C      RDWT20:	LD	A,(SEKDSK)
+HSTDSK  F509    32 F97F        C      	LD	(HSTDSK),A
+SEKTRK  F50C    3A F97D        C      	LD	A,(SEKTRK)
+HSTTRK  F50F    32 F980        C      	LD	(HSTTRK),A
+SEKHST  F512    3A F982        C      	LD	A,(SEKHST)
+HSTSEC  F515    32 F981        C      	LD	(HSTSEC),A
+RSFLAG  F518    3A F98A        C      	LD	A,(RSFLAG)	; CHECK BUFFER REQUIRES PRE-READ
+  F51B    B7             C      	OR	A
+RDWT30  F51C    28 04          C      	JR	Z,RDWT30	; NO PRE-READ REQUIRED
+READHS  F51E    CD F55F        C      	CALL	READHST		; IF YES, THEN READ DATA FROM DISK
+  F521    C0             C      	RET	NZ		; ERROR IN READING
+                         C      
+RDWT30  F522    AF             C      RDWT30:	XOR	A		; INTO BUFFER.
+HSTWRT  F523    32 F984        C      	LD	(HSTWRT),A	; RESET PENDING WRITE FLAG
+                         C      
+                         C      ; COPY DATA TO OR FROM BUFFER
+                         C      
+RDWT40SEKSEC  F526    3A F97E        C      RDWT40:	LD	A,(SEKSEC)	; COMPUTE RELATIVE HOST BUFFER ADDRESS
+SECMSK  F529    E6 01          C      	AND	SECMSK
+  F52B    67             C      	LD	H,A
+  F52C    2E 00          C      	LD	L,0
+  F52E    CB 3C          C      	SRL	H
+  F530    CB 1D          C      	RR	L		; HL = ((SEKSEC)&SECMSK)*128
+                         C      
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-18
+802FDISK.MAC--DISK I/O MODULE
+
+                         C      ; HL HAS RELATIVE HOST BUFFER ADDRESS
+                         C      
+HSTBUF  F532    11 F991        C      	LD	DE,HSTBUF
+  F535    19             C      	ADD	HL,DE
+DMAADR  F536    ED 5B F98D     C      	LD	DE,(DMAADR)	; GET/PUT CP/M DATA BUFFER POINTER
+  F53A    01 0080        C      	LD	BC,128		; SET BC = LENGTH TO MOVE
+READOP  F53D    3A F98B        C      	LD	A,(READOP)	; WHICH WAY?
+  F540    B7             C      	OR	A
+RDWT50  F541    20 06          C      	JR	NZ,RDWT50	; SKIP IF READ OPERATION
+                         C      
+                         C      ; WRITE OPERATION, MARK AND SWITCH DIRECTION
+                         C      
+  F543    3E 01          C      	LD	A,1
+HSTWRT  F545    32 F984        C      	LD	(HSTWRT),A	; SET WRITE PENDING FLAG ON
+  F548    EB             C      	EX	DE,HL		; SOURCE/DESTINATION POINTERS SWAP
+                         C      
+                         C      ; BC INITIALLY 128, DE DESTINATION, HL IS SOURCE POINTER
+                         C      
+RDWT50  F549    ED B0          C      RDWT50:	LDIR
+                         C      
+                         C      ; DATA HAS BEEN MOVE TO/FROM HOST BUFFER
+                         C      
+WRTYPE  F54B    3A F98C        C      	LD	A,(WRTYPE)	; CHECK WRITE TYPE OPERATION
+WRDIR  F54E    FE 01          C      	CP	WRDIR		; DIRECTORY WRITE?
+RDWT60  F550    28 05          C      	JR	Z,RDWT60	; IF NOT A DIRECTORY WRITE THEN EXIT
+ERFLAG  F552    3A F989        C      	LD	A,(ERFLAG)	; WITH ERROR FLAG =0, AND Z=1
+  F555    B7             C      	OR	A
+  F556    C9             C      	RET
+                         C      
+                         C      ; ALWAYS FLUSH A DIRECTORY BUFFER
+                         C      
+RDWT60  F557    AF             C      RDWT60:	XOR	A
+HSTWRT  F558    32 F984        C      	LD	(HSTWRT),A	; RESET WRITE PENDING FLAG
+WRITEH  F55B    CD F566        C      	CALL	WRITEHST
+  F55E    C9             C      	RET
+                         C      
+                         C      ; HERE ARE THE SECTOR READ/WRITE FUNCTIONS. WE
+                         C      ; WANT TO READ/WRITE TO DISK USING THE PARAMETERS
+                         C      ; SECTOR, TRACK, DMA ADDRESS.
+                         C      
+READHS  F55F                   C      READHST:
+RDSCMD  F55F    3E 80          C      	LD	A,RDSCMD	; FDC READ COMMAND
+RDSTAB  F561    21 F77F        C      	LD	HL,RDSTAB	; DMA INITIALIZATION TABLE
+RWHSEC  F564    18 05          C      	JR	RWHSEC		; CODE COMMON TO READ AND WRITE
+                         C      
+WRITEH  F566                   C      WRITEHST:
+WTSCMD802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-19
+802FDISK.MAC--DISK I/O MODULE
+
+  F566    3E A0          C      	LD	A,WTSCMD	; FDC WRITE COMMAND
+WTSTAB  F568    21 F790        C      	LD	HL,WTSTAB	; DMA INITIALIZATION TABLE FOR WRITE
+                         C      
+RWHSECCOMAND  F56B    32 F975        C      RWHSEC:	LD	(COMAND),A
+DMATAB  F56E    22 F97A        C      	LD	(DMATAB),HL
+                         C      
+HSTDSK  F571    3A F97F        C      	LD	A,(HSTDSK)
+DRIVE  F574    21 F876        C      	LD	HL,DRIVE	; CURRENT DRIVE
+  F577    BE             C      	CP	(HL)		; SAME DRIVE?
+SELDRV  F578    C4 F693        C      	CALL	NZ,SELDRV	; NO, HARDWARE SELECT THE DRIVE 
+SELSID  F57B    CD F662        C      	CALL	SELSID		; SELECT THE PROPER SIDE	
+                         C      
+                         C      ; READY TO READ OR WRITE A PHYSICAL SECTOR
+                         C      
+  F57E    3E 0A          C      	LD	A,10		; NO. OF RETRIES
+RETRY  F580    32 F977        C      	LD	(RETRY),A	; ON DISK I/O OPERATION
+                         C      
+RWHS10DMATAB  F583    2A F97A        C      RWHS10:	LD	HL,(DMATAB)	; GET DMA INITIALIZE PARAMETER POINTER
+PRTINI  F586    CD F6EE        C      	CALL	PRTINI		; DO DMA INITIALIZATION.
+SEEK  F589    CD F5BB        C      	CALL	SEEK		; SEEK THE USER DEFINED TRACK
+RWHS20  F58C    20 0F          C      	JR	NZ,RWHS20	; ADJUST RETRY COUNTER
+COMAND  F58E    3A F975        C      	LD	A,(COMAND)	; SET UP FDC
+FDCCMD  F591    D3 14          C      	OUT	(FDCCMD),A	; COMMAND REGISTER
+WAIT  F593    CD F5DB        C      	CALL	WAIT		; WAIT FOR CONTROLLER NOT BUSY
+RWHS20  F596    20 05          C      	JR	NZ,RWHS20	; ERROR ON READ/WRITE
+ERFLAG  F598    3A F989        C      	LD	A,(ERFLAG)	; RETURN CODE
+  F59B    B7             C      	OR	A		; SET/CLEAR Z FLAG
+  F59C    C9             C      	RET			; DISK I/O SUCCESSFUL
+                         C      
+                         C      ; WE HAD AN ERROR ON READ/WRITE OPERATION
+                         C      
+RWHS20RESDMA  F59D    CD F6D9        C      RWHS20:	CALL	RESDMA		; RESET THE DMA ON ABORT
+ERFLAG  F5A0    3A F989        C      	LD	A,(ERFLAG)	; IF DRIVE NOT READY,
+FDCRDY  F5A3    CB 7F          C      	BIT	FDCRDY,A	; DON'T BOTHER WITH RETRIES
+  F5A5    C0             C      	RET	NZ		; RETURN ERROR FLAG IN A
+                         C      
+RETRY  F5A6    21 F977        C      	LD	HL,RETRY	; MORE RETRIES LEFT?
+  F5A9    7E             C      	LD	A,(HL)
+  F5AA    35             C      	DEC	(HL)		; BUMP DOWN COUNT
+  F5AB    B7             C      	OR	A
+RWHS30  F5AC    28 05          C      	JR	Z,RWHS30	; ALL DONE, WE FAILED.
+RESTOR  F5AE    CD F6C5        C      	CALL	RESTOR		; SEEK TRACK 0.
+RWHS10  F5B1    18 D0          C      	JR	RWHS10		; LOOP BACK FOR ANOTHER SHOT.
+                         C      
+RWHS30ERRPRT  F5B3    CD F71A        C      RWHS30:	CALL	ERRPRT		; PRINT DETAILED ERROR MESSAGE
+ERFLAG  F5B6    3A F989        C      	LD	A,(ERFLAG)	; RETURN ERROR
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-20
+802FDISK.MAC--DISK I/O MODULE
+
+  F5B9    B7             C      	OR	A		; SET/CLEAR Z FLAG.
+  F5BA    C9             C      	RET
+                         C      
+                         C      
+                         C      ; END OF 802FDISK.MAC
+                                
+                                	SUBTTL 802FSUBS.MAC--SUBROUTINES MODULE
+                                	PAGE
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-21
+802FSUBS.MAC--SUBROUTINES MODULE
+
+                                
+                         C      	INCLUDE 802FSUBS.MAC
+                         C      
+                         C      ; THIS ROUTINE DOES THE ACTUAL SEEKING.
+                         C      
+SEEKTRKTAB  F5BB    21 F98F        C      SEEK:	LD	HL,TRKTAB	; CURRENT TRACK TABLE
+HSTDSK  F5BE    3A F97F        C      	LD	A,(HSTDSK)	; CURRENT DRIVE
+  F5C1    4F             C      	LD	C,A		; MAKE IT AN INDEX INTO
+  F5C2    06 00          C      	LD	B,0		; TRACK TABLE
+  F5C4    09             C      	ADD	HL,BC		; ADD IN INDEX
+  F5C5    7E             C      	LD	A,(HL)		; PULL OUT THE TRACK FOR THIS DRIVE
+FDCTRK  F5C6    D3 15          C      	OUT	(FDCTRK),A	; SEND IT TO THE CONTROLLER
+  F5C8    47             C      	LD	B,A		; SAVE FOR LATER
+HSTTRK  F5C9    3A F980        C      	LD	A,(HSTTRK)	; GET THE SOUGHT-AFTER TRACK.
+  F5CC    77             C      	LD	(HL),A		; PLACE IT IN TRACK TABLE
+  F5CD    B8             C      	CP	B		; SAME TRACK?
+  F5CE    C8             C      	RET	Z		; YES, NO NEED TO SEEK
+FDCDAT  F5CF    D3 17          C      	OUT	(FDCDAT),A	; AND GIVE IT TO THE CONTROLLER.
+SEECMD  F5D1    3E 14          C      	LD	A,SEECMD	; THIS IS THE SEEK COMMAND
+FDCCMD  F5D3    D3 14          C      	OUT	(FDCCMD),A	; GIVE THE ORDER TO FDC
+                         C      
+                         C      ; NOW TEST FOR COMPLETION
+                         C      
+WAIT  F5D5    CD F5DB        C      	CALL	WAIT		; WAIT UNTIL NOT BUSY
+SEEMSK  F5D8    E6 98          C      	AND	SEEMSK		; AND OUT TRACK 0 BIT
+  F5DA    C9             C      	RET			; MAY HAVE FAILED
+                         C      
+                         C      ; THIS ROUTINE LOOPS UNTIL THE FDC IS
+                         C      ; IN A NON-BUSY STATE, OR UNTIL A NOT-
+                         C      ; READY CONDITION IS DETECTED.  TIME-OUT
+                         C      ; FOR DRIVE BUSY OCCURS AT APPROX.
+                         C      ; 1.5 SECONDS AFTER COMMAND
+                         C      ; INITIATION.
+                         C      
+WAIT  F5DB    3E 0F          C      WAIT:	LD	A,15		; WE MUST DELAY ABOUT
+WAIT10  F5DD    3D             C      WAIT10:	DEC	A		; 60 USECS. BEFORE READING 
+WAIT10  F5DE    20 FD          C      	JR	NZ,WAIT10	; THE STATUS.
+                         C      
+TEMPBC  F5E0    ED 43 F86F     C      	LD	(TEMPBC),BC	; SAVE REGISTERS
+TEMPDE  F5E4    ED 53 F871     C      	LD	(TEMPDE),DE
+TEMPHL  F5E8    22 F873        C      	LD	(TEMPHL),HL
+  F5EB    01 C000        C      	LD	BC,0C000H	; TIME OUT FOR 1.25 SECONDS
+  F5EE    3E 00          C      	LD	A,0
+JMPSW  F5F0    32 F875        C      	LD	(JMPSW),A	; RESET THE FLAG FOR MESSAGE
+                         C      
+WAIT20FDCCMD802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-22
+802FSUBS.MAC--SUBROUTINES MODULE
+
+  F5F3    DB 14          C      WAIT20:	IN	A,(FDCCMD)	; READ THE FDC STATUS--2.75
+ERFLAG  F5F5    32 F989        C      	LD	(ERFLAG),A	; SAVE IT FOR LATER--3.25
+FDCRDY  F5F8    CB 7F          C      	BIT	FDCRDY,A	; IS THE DEVICE NOT READY?--2.00
+WAIT50  F5FA    20 1B          C      	JR	NZ,WAIT50	; YES, THIS IS AN ERROR--1.25
+                         C      
+  F5FC    F5             C      	PUSH	AF		; SAVE REGISTERS--2.75
+JMPSW  F5FD    3A F875        C      	LD	A,(JMPSW)	; GET MESSAGE FLAG--3.25
+  F600    FE 00          C      	CP	0		; MESSAGE ALREADY SENT OUT?--1.75
+WAIT30  F602    20 1F          C      	JR	NZ,WAIT30	; YES, SKIP--1.75
+  F604    0B             C      	DEC	BC		; COUNT DOWN--1.50
+  F605    78             C      	LD	A,B		; --2.25
+  F606    B1             C      	OR	C		; TIME OUT?--1.00
+SIGMSG  F607    CC F64E        C      	CALL	Z,SIGMSG	; YES, PRINT MESSAGE--2.50
+WAIT40  F60A    F1             C      WAIT40:	POP	AF		; RESTORE REGISTERS--2.50
+                         C      
+FDCBSY  F60B    CB 47          C      	BIT	FDCBSY,A	; ARE WE PROCESSING A COMMAND?--2.00
+WAIT20  F60D    20 E4          C      	JR	NZ,WAIT20	; NO, RETURN ERROR CODE--3.00
+                         C      
+UNMSTA  F60F    32 F979        C      	LD	(UNMSTA),A	; UNMASKED STATUS (FOR DEBUG)
+ERRMSK  F612    E6 DC          C      	AND	ERRMSK		; MASK OFF NON-ERROR BITS
+ERFLAG  F614    32 F989        C      	LD	(ERFLAG),A	; SAVE STATUS FOR LATER
+                         C      
+WAIT50TEMPHL  F617    2A F873        C      WAIT50:	LD	HL,(TEMPHL)	; RESTORE REGISTERS
+TEMPDE  F61A    ED 5B F871     C      	LD	DE,(TEMPDE)
+TEMPBC  F61E    ED 4B F86F     C      	LD	BC,(TEMPBC)
+  F622    C9             C      	RET
+                         C      
+WAIT30CONST  F623    CD F2FF        C      WAIT30:	CALL	CONST		; CONSOLE STATUS
+  F626    FE 00          C      	CP	0		; AVAILABLE INPUT?
+WAIT40  F628    28 E0          C      	JR	Z,WAIT40	; NO, SKIP
+CONIN  F62A    CD F325        C      	CALL	CONIN		; GET CHARACTER
+  F62D    FE 03          C      	CP	03H		; CONTROL-C?
+WAIT40  F62F    20 D9          C      	JR	NZ,WAIT40	; NO, LOOP BACK
+                         C      
+  F631    F1             C      	POP	AF		; RESTORE REGISTERS
+TEMPHL  F632    2A F873        C      	LD	HL,(TEMPHL)
+TEMPDE  F635    ED 5B F871     C      	LD	DE,(TEMPDE)
+TEMPBC  F639    ED 4B F86F     C      	LD	BC,(TEMPBC)
+                         C      
+FRCCMD  F63D    3E D0          C      	LD	A,FRCCMD	; FORCE TERMINATE
+FDCCMD  F63F    D3 14          C      	OUT	(FDCCMD),A
+FDCCMD  F641    D3 14          C      	OUT	(FDCCMD),A
+RESDMA  F643    CD F6D9        C      	CALL	RESDMA		; RESET DMA
+  F646    3E 00          C      	LD	A,0
+DEFDSK  F648    32 0004        C      	LD	(DEFDSK),A	; SET DEFAULT DRIVE TO A
+WBOOT  F64B    C3 F280        C      	JP	WBOOT		; WARM-BOOT
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-23
+802FSUBS.MAC--SUBROUTINES MODULE
+
+                         C      
+                         C      ; THIS ROUTINE PRINTS DOOR MESSAGE WHEN THERE IS AN ACCESS TO
+                         C      ; A DRIVE WITH DOOR OPENED
+                         C      
+SIGMSG  F64E    3E 01          C      SIGMSG:	LD	A,1		; SET FLAG
+JMPSW  F650    32 F875        C      	LD	(JMPSW),A
+HSTDSK  F653    3A F97F        C      	LD	A,(HSTDSK)	; CURRENT DRIVE
+  F656    C6 41          C      	ADD	A,41H		; MAKE IT ASCII
+VDRIVE  F658    32 F855        C      	LD	(VDRIVE),A	; SAVE FOR LATER
+RDYMSG  F65B    21 F83A        C      	LD	HL,RDYMSG	; PRINT DOOR MESSAGE
+PRTMSG  F65E    CD F6E4        C      	CALL	PRTMSG
+  F661    C9             C      	RET
+                         C      
+                         C      ; SELECT THE PROPER SIDE OF THE
+                         C      ; DISKETTE TO SEEK, DEPENDING ON
+                         C      ; THE LOGICAL SECTOR NO. IN HSTSEC.
+                         C      ; GO AHEAD AND SET THE FDC SECTOR
+                         C      ; REGISTER.
+                         C      
+SELSIDFDDBYT  F662    3A F976        C      SELSID:	LD	A,(FDDBYT)	; GET THE DRIVE SELECT LATCH IN MEMORY
+  F665    4F             C      	LD	C,A		; HOLD IT IN C FOR A BIT.
+  F666    CB 91          C      	RES	2,C		; CHOOSE SIDE 0, FOR NOW.
+HSTSEC  F668    3A F981        C      	LD	A,(HSTSEC)	; GET THE LOGICAL HOST SECTOR 
+PSPT0  F66B    FE 12          C      	CP	PSPT0		; SECTOR >= THAN MAXIMUM SECTOR?
+SELS10  F66D    38 04          C      	JR	C,SELS10	; IF NOT THEN SELECT SIDE 0
+  F66F    CB D1          C      	SET	2,C		; CHOOSE SIDE 1.
+PSPT0  F671    D6 12          C      	SUB	PSPT0		; DE-BIAS SECTOR NO.
+                         C      
+SELS10  F673    3C             C      SELS10:	INC	A		; PHYSICAL SECTORS HAVE ORIGIN 1
+FDCSEC  F674    D3 16          C      	OUT	(FDCSEC),A	; SEND SECTOR TO CONTROLLER
+TSEC  F676    32 F877        C      	LD	(TSEC),A	; SAVE FOR LATER
+  F679    79             C      	LD	A,C		; GET NEW SIDE.
+FDDBYT  F67A    32 F976        C      	LD	(FDDBYT),A	; RESTORE IT TO THE MEMORY IMAGE
+FDD  F67D    D3 18          C      	OUT	(FDD),A		; AND LATCH
+MOTFLG  F67F    3A F878        C      	LD	A,(MOTFLG)	; MOTOR ON-OFF FLAG
+  F682    FE 00          C      	CP	0		; MOTOR OFF?
+  F684    C0             C      	RET	NZ		; NO, SKIP DELAY
+  F685    3E 01          C      	LD	A,1
+MOTFLG  F687    32 F878        C      	LD	(MOTFLG),A	; SET MOTOR ON FLAG
+  F68A    01 9C40        C      	LD	BC,40000	; NEEDS DELAY FOR ABOUT 300MSEC
+SELS20  F68D    0B             C      SELS20:	DEC	BC		; COUNT DOWN
+  F68E    78             C      	LD	A,B
+  F68F    B1             C      	OR	C		; REACHED ZERO YET?
+SELS20  F690    20 FB          C      	JR	NZ,SELS20	; NO, LOOP BACK
+  F692    C9             C      	RET			; ALL DONE.
+                         C      
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-24
+802FSUBS.MAC--SUBROUTINES MODULE
+
+                         C      ; SELECT THE DRIVE IN HARDWARE.
+                         C      ; DRIVE TO BE SELECTED IS PASSED
+                         C      ; IN REGISTER A.
+                         C      
+SELDRV  F693    77             C      SELDRV:	LD	(HL),A		; SAVE CURRENT DRIVE FOR LATER
+  F694    0E 10          C      	LD	C,00010000B	; THIS IS THE MASK FOR DRIVE 0
+                         C      
+SELD10  F696    B7             C      SELD10:	OR	A		; HAVE WE GOT THE RIGHT MASK?
+SELD20  F697    28 05          C      	JR	Z,SELD20	; YES.
+  F699    CB 21          C      	SLA	C		; SHIFT DRIVE MASK OVER 1 BIT LEFT.
+  F69B    3D             C      	DEC	A		; DOWN THE COUNTER.
+SELD10  F69C    18 F8          C      	JR	SELD10		; AND LOOP.
+                         C      
+SELD20FDDBYT  F69E    3A F976        C      SELD20:	LD	A,(FDDBYT)	; GET MEMORY IMAGE OF DRIVE LATCH
+  F6A1    E6 0F          C      	AND	00001111B	; AND OFF CURRENT DRIVE SELECT BITS.
+  F6A3    B1             C      	OR	C		; OUT WITH THE OLD, IN WITH THE NEW
+FDDBYT  F6A4    32 F976        C      	LD	(FDDBYT),A	; RESTORE MEMORY IMAGE.
+FDD  F6A7    D3 18          C      	OUT	(FDD),A		; AND INFORM LATCH ABOUT NEW DRIVE.
+  F6A9    C9             C      	RET
+                         C      
+                         C      ; RESET THE DISK SUBSYSTEM BY RESTORING
+                         C      ; ALL THE HEADS TO TRACK 0.  RESTORING
+                         C      ; DRIVES IN REVERSE ORDER ASSURES THAT
+                         C      ; DRIVE A WILL ALWAYS BE SELECTED UPON
+                         C      ; COMPLETION.
+                         C      
+RESDSK  F6AA    3E 02          C      RESDSK:	LD	A,00000010B	; INITIALIZE THE FDD LATCH, MOTOR ON
+FDDBYT  F6AC    32 F976        C      	LD	(FDDBYT),A	; MEMORY IMAGE.
+FDD  F6AF    D3 18          C      	OUT	(FDD),A		; HARDWARE LATCH.
+MAXDRV  F6B1    06 01          C      	LD	B,MAXDRV	; INITIAL DRIVE NO.
+                         C      
+RESD10  F6B3    78             C      RESD10:	LD	A,B		; SELECT THE DRIVE
+HSTDSK  F6B4    32 F97F        C      	LD	(HSTDSK),A	; STORE IT IN HSTDSK
+DRIVE  F6B7    21 F876        C      	LD	HL,DRIVE
+SELDRV  F6BA    CD F693        C      	CALL	SELDRV
+RESTOR  F6BD    CD F6C5        C      	CALL	RESTOR		; RESTORE THE HEADS TO TRACK 0
+  F6C0    05             C      	DEC	B		; DECREMENT DRIVE NO.
+RESD10  F6C1    F2 F6B3        C      	JP	P,RESD10	; LOOP FOR NEXT DRIVE
+  F6C4    C9             C      	RET
+                         C      
+                         C      ; RESTORE THE HEADS ON THE CURRENTLY
+                         C      ; SELECTED DRIVE TO TRACK 0.  THIS IS
+                         C      ; DONE AFTER EACH SEEK, READ, OR, WRITE
+                         C      ; FAILURE. ALSO AT WARM AND COLD BOOT.
+                         C      ; WE MUST RESET THE CURRENT TRACK FOR
+                         C      ; THIS DRIVE ALSO.
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-25
+802FSUBS.MAC--SUBROUTINES MODULE
+
+                         C      
+RESTORHSTDSK  F6C5    3A F97F        C      RESTOR:	LD	A,(HSTDSK)	; GET THE CURRENT DRIVE
+TRKTAB  F6C8    21 F98F        C      	LD	HL,TRKTAB	; BASE ADDRESS OF CURRENT TRACK TABLE
+  F6CB    5F             C      	LD	E,A
+  F6CC    16 00          C      	LD	D,0		; MAKE DRIVE NO. AN INDEX.
+  F6CE    19             C      	ADD	HL,DE		; ADD IN INDEX.
+  F6CF    36 00          C      	LD	(HL),0		; CLEAR CURRENT TRACK TO 0.
+RESCMD  F6D1    3E 00          C      	LD	A,RESCMD	; FDC RESTORE COMMAND
+FDCCMD  F6D3    D3 14          C      	OUT	(FDCCMD),A	; SEND IT.
+WAIT  F6D5    CD F5DB        C      	CALL	WAIT		; WAIT FOR COMPLETION
+  F6D8    C9             C      	RET
+                         C      
+                         C      ; RESET THE DMA SIX TIMES TOTAL
+                         C      
+RESDMA  F6D9    C5             C      RESDMA:	PUSH	BC		; DON'T DESTROY REGGIES
+  F6DA    06 06          C      	LD	B,6		; COUNTER
+RDMA10  F6DC    3E C3          C      RDMA10:	LD	A,11000011B	; RESET THE DMA
+DMA  F6DE    D3 10          C      	OUT	(DMA),A		; SO THAT IT DOESN'T RUN ON.
+RDMA10  F6E0    10 FA          C      	DJNZ	RDMA10		; LOOP FOR ANOTHER TIME
+  F6E2    C1             C      	POP	BC		; RESTORE REGISTER PAIR
+  F6E3    C9             C      	RET			; ALL DONE
+                         C      
+                         C      ; MISCELANEOUS ROUTINES
+                         C      
+                         C      ; PRINT THE STRING POINTED TO BY HL
+                         C      ; AND TERMINATED BY NULL (0).
+                         C      
+PRTMSG  F6E4    7E             C      PRTMSG:	LD	A,(HL)
+  F6E5    B7             C      	OR	A
+  F6E6    C8             C      	RET	Z		; ALL DONE
+                         C      
+  F6E7    4F             C      	LD	C,A
+CRTOUT  F6E8    CD F366        C      	CALL	CRTOUT		; OUTPUT IT
+  F6EB    23             C      	INC	HL
+PRTMSG  F6EC    18 F6          C      	JR	PRTMSG		; AND LOOP BACK
+                         C      
+                         C      ; GENERAL PORT INITIALIZATION ROUTINE
+                         C      ;	ENTRY:		HL	->	PORT ADDRESS
+                         C      ;					BYTE COUNT
+                         C      ;					DATA
+                         C      ;					 |
+                         C      ;					 |
+                         C      
+PRTINI  F6EE    4E             C      PRTINI:	LD	C,(HL)		; GET PORT ADDRESS
+  F6EF    23             C      	INC	HL		
+PRTENT  F6F0    46             C      PRTENT:	LD	B,(HL)		; GET THE COUNT
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-26
+802FSUBS.MAC--SUBROUTINES MODULE
+
+  F6F1    23             C      	INC	HL		; POINT TO FIRST DATA BYTE
+  F6F2    ED B3          C      	OTIR			; BLOCK OUTPUT
+  F6F4    C9             C      	RET
+                         C      
+                         C      ; ADDITIONAL HARWARE SYSTEM 
+                         C      ; HARDWARE INITIALIZATION 
+                         C      ; COMES NEXT.
+                         C      
+HDWINIRESDSK  F6F5    CD F6AA        C      HDWINI:	CALL	RESDSK		; RESET THE DISK SUBSYSTEM
+SIOTAB  F6F8    21 F7A1        C      	LD	HL,SIOTAB	; INITIALIZE SIO #1 FOR SERIAL PRINTER
+PRTINI  F6FB    CD F6EE        C      	CALL	PRTINI		; BAUD RATE IS SET UP IN PROM CODE
+                         C      				; BY READING THE DIP SWITCH
+  F6FE    C9             C      	RET			; MAY BE MORE LATER
+                         C      
+                         C      ; THIS ROUTINE TRANSFERS CONTROL TO 
+                         C      ; THE I/O DRIVER INDICATED BY THE 
+                         C      ; APPROPRIATE BITS IN IOBYTE (0003H).
+                         C      ; ENTRY:	HL ->	<DEVICE TYPE>
+                         C      ;			<DEVICE 1 ADDRESS>
+                         C      ;			<DEVICE 2 ADDRESS>
+                         C      ;			<DEVICE 3 ADDRESS>
+                         C      ;			<DEVICE 4 ADDRESS>
+                         C      
+IODISP  F6FF    E1             C      IODISP:	POP	HL		; GET DISPATCH TABLE POINTER
+  F700    C5             C      	PUSH	BC		; SAVE PERTINENT REGISTERS
+  F701    D5             C      	PUSH	DE
+  F702    7E             C      	LD	A,(HL)		; DEVICE TYPE
+  F703    23             C      	INC	HL		; ADVANCE POINTER
+  F704    47             C      	LD	B,A		; SAVE DEVICE TYPE FOR LATER
+  F705    B7             C      	OR	A		; WHICH DEVICE?
+IOBYTE  F706    3A 0003        C      	LD	A,(IOBYTE)	; RETREIVE CURRENT IOBYTE
+IODI20  F709    28 03          C      	JR	Z,IODI20	; NO SHIFTING NEEDED
+                         C      
+IODI10  F70B    1F             C      IODI10:	RRA			; ROTATE BYTE UNTIL DEVICE BITS
+IODI10  F70C    10 FD          C      	DJNZ	IODI10		; ARE LINED UP WITH BIT 0
+                         C      
+IODI20  F70E    E6 03          C      IODI20:	AND	03H		; MASK OFF DON'T CARE BITS
+  F710    17             C      	RLA			; FORM WORD OFFSET
+  F711    4F             C      	LD	C,A		; FORM 16 BITS, B ALREADY 0
+  F712    09             C      	ADD	HL,BC		; ADD IN BASE ADDRESS
+  F713    5E             C      	LD	E,(HL)		; TRANSFER DISPATCH ADDRESS
+  F714    23             C      	INC	HL		; TO REGISTERS DE
+  F715    56             C      	LD	D,(HL)
+  F716    EB             C      	EX	DE,HL		; RESULT INTO HL
+  F717    D1             C      	POP	DE		; RESTORE REGISTERS
+  F718    C1             C      	POP	BC
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-27
+802FSUBS.MAC--SUBROUTINES MODULE
+
+  F719    E9             C      	JP	(HL)		; OFF WE GO, INTO THE WILD BLUE YONDER!
+                         C      
+                         C      ; THIS ROUTINE FILLS OUT THE DETAILED ERROR MESSAGE TABLE
+                         C      ; OBTAINING VARIABLE VALUES FROM CURRENT STATE.
+                         C      ; THEN CALLS PRTMSG ROUTINE WITH THE TABLE ADDRESS IN HL
+                         C      
+ERRPRTCOMAND  F71A    3A F975        C      ERRPRT:	LD	A,(COMAND)	; CURRENT COMMAND
+  F71D    FE 80          C      	CP	80H		; READ?
+WRMSG  F71F    20 05          C      	JR	NZ,WRMSG	; NO, SKIP
+RMSG  F721    21 F830        C      	LD	HL,RMSG		; READ MESSAGE
+ERR10  F724    18 03          C      	JR	ERR10
+WRMSGWMSG  F726    21 F835        C      WRMSG:	LD	HL,WMSG		; WRITE MESSAGE
+ERR10VCMD  F729    11 F7F5        C      ERR10:	LD	DE,VCMD		; COMMAND MESSAGE ADDRESS IN TABLE
+  F72C    01 0005        C      	LD	BC,5
+  F72F    ED B0          C      	LDIR			; STORE IN TABLE
+VSIDE  F731    21 F808        C      	LD	HL,VSIDE	; SIDE VARIABLE
+FDDBYT  F734    3A F976        C      	LD	A,(FDDBYT)	; MEMORY IMAGE
+  F737    CB 57          C      	BIT	2,A		; SIDE BIT
+ONE  F739    28 04          C      	JR	Z,ONE		; 0 - SIDE 1
+  F73B    36 32          C      	LD	(HL),32H	; ASCII	2
+CONT10  F73D    18 02          C      	JR	CONT10
+ONE  F73F    36 31          C      ONE:	LD	(HL),31H	; ASCII 1
+CONT10VTRK  F741    21 F812        C      CONT10:	LD	HL,VTRK		; TRACK VARIABLE
+HSTTRK  F744    3A F980        C      	LD	A,(HSTTRK)	; CURRENT TRACK NUMBER
+FTAB  F747    CD F763        C      	CALL	FTAB		; FILL OUT TABLE ROUTINE
+VSEC  F74A    21 F81E        C      	LD	HL,VSEC		; SECTOR VARIABLE
+TSEC  F74D    3A F877        C      	LD	A,(TSEC)	; CURRENT TARGET SECTOR
+FTAB  F750    CD F763        C      	CALL	FTAB
+VSTAT  F753    21 F82D        C      	LD	HL,VSTAT	; ERROR STATUS
+ERFLAG  F756    3A F989        C      	LD	A,(ERFLAG)	; GET ERROR FLAG
+FTAB  F759    CD F763        C      	CALL	FTAB
+ERRMSG  F75C    21 F7F3        C      	LD	HL,ERRMSG	; ERROR MESSAGE TABLE ADDRESS
+PRTMSG  F75F    CD F6E4        C      	CALL	PRTMSG
+  F762    C9             C      	RET
+                         C      
+                         C      ; THIS ROUTINE CONVERTS HEX CODE INTO ASCII AND FILL OUT THE TABLE
+                         C      
+FTAB  F763    F5             C      FTAB:	PUSH	AF		; SAVE REGISTERS
+  F764    0F             C      	RRCA			; ROTATE RIGHT 4 TIMES
+  F765    0F             C      	RRCA
+  F766    0F             C      	RRCA
+  F767    0F             C      	RRCA
+GHEX  F768    CD F773        C      	CALL	GHEX		; CONVERT HIGH ORDER 4 BITS TO ASCII
+  F76B    77             C      	LD	(HL),A		; STORE INTO TABLE
+  F76C    23             C      	INC	HL		; NEXT TABLE LOCATION
+  F76D    F1             C      	POP	AF		; RESTORE REGISTERS
+GHEX802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-28
+802FSUBS.MAC--SUBROUTINES MODULE
+
+  F76E    CD F773        C      	CALL	GHEX		
+  F771    77             C      	LD	(HL),A		
+  F772    C9             C      	RET
+                         C      
+                         C      ; HEX INTO ASCII ROUTINE
+                         C      
+GHEX  F773    E6 0F          C      GHEX:	AND	0FH		; STRIP HIGH 4 BITS
+  F775    FE 0A          C      	CP	10		; NUMERIC?
+G10  F777    30 03          C      	JR	NC,G10		; YES, SKIP FOR ALPHA
+  F779    C6 30          C      	ADD	A,'0'		; ADD 30
+  F77B    C9             C      	RET
+G10  F77C    C6 37          C      G10:	ADD	A,'A'-10	; ADD 40
+  F77E    C9             C      	RET
+                         C      
+                         C      ; END OF 802FSUBS.MAC
+                         C      
+                                
+                                	SUBTTL 802FEQU.MAC--EQUATES MODULE
+                                	PAGE
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-29
+802FEQU.MAC--EQUATES MODULE
+
+                                
+                         C      	INCLUDE 802FEQU.MAC
+                         C      
+                         C      ;	BDOS CONSTANTS ON ENTRY TO WRITE
+                         C      
+WRALL  0000                   C      WRALL	EQU	0		;WRITE TO ALLOCATED
+WRDIR  0001                   C      WRDIR	EQU	1		;WRITE TO DIRECTORY
+WRUAL  0002                   C      WRUAL	EQU	2		;WRITE TO UNALLOCATED
+                         C      
+                         C      ; SIO #0 PORT DEFINITIONS
+                         C      ; CHANNEL B FOR CRT
+                         C      
+SIOAD0  000C                   C      SIOAD0	EQU	0CH		; CHANNEL A DATA PORT FOR SIO 0
+SIOAC0  000E                   C      SIOAC0	EQU	0EH		; CHANNEL A CONTROL PORT
+SIOBD0  000D                   C      SIOBD0	EQU	0DH		; CHANNEL B DATA PORT FOR SIO 0
+SIOBC0  000F                   C      SIOBC0	EQU	0FH		; CHANNEL B CONTROL PORT
+                         C      
+                         C      ; SIO #1 PORT DEFINITIONS
+                         C      ; CHANNEL B FOR PRINTER
+                         C      
+SIOAD1  0020                   C      SIOAD1	EQU	20H		; CHANNEL A DATA PORT FOR SIO 1
+SIOAC1  0022                   C      SIOAC1	EQU	22H		; CHANNEL A CONTROL PORT
+SIOBD1  0021                   C      SIOBD1	EQU	21H		; CHANNEL B DATA PORT FOR SIO 1
+SIOBC1  0023                   C      SIOBC1	EQU	23H		; CHANNEL B CONTROL PORT
+                         C      
+                         C      ; CTC PORT DEFINITIONS
+                         C      
+CTC0  0008                   C      CTC0	EQU	08H		; TERMINAL BAUD RATE GENERATOR
+CTC1  0009                   C      CTC1	EQU	09H		; SERIAL PRINTER BAUD RATE GENERATOR
+CTC2  000A                   C      CTC2	EQU	0AH		; REAL TIME CLOCK CHANNEL
+CTC3  000B                   C      CTC3	EQU	0BH		; FLOPPY DISK INTERRUPT CHANNEL
+                         C      
+                         C      ; PIO PORT DEFINITIONS
+                         C      
+PIOAD  001C                   C      PIOAD	EQU	1CH		; PIO CHANNEL A DATA PORT
+PIOAC  001E                   C      PIOAC	EQU	1EH		; PIO CHANNEL A CONTROL PORT
+PIOBD  001D                   C      PIOBD	EQU	1DH		; PIO CHANNEL B DATA PORT
+PIOBC  001F                   C      PIOBC	EQU	1FH		; PIO CHANNEL B CONTROL PORT
+                         C      
+                         C      ; SIO STATUS BIT DEFINITIONS
+                         C      
+RCVRDY  0000                   C      RCVRDY	EQU	0		; RECEIVE CHARACTER AVAILABLE
+TRXRDY  0002                   C      TRXRDY	EQU	2		; TRANSMITTER BUFFER EMPTY
+                         C      
+                         C      ; PIO CENTRONICS PRINTER INTERFACE DEFINITIONS
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-30
+802FEQU.MAC--EQUATES MODULE
+
+                         C      
+STROBE  0000                   C      STROBE	EQU	0		; PRINTER STROBE LINE
+PIOMSK  0038                   C      PIOMSK	EQU	00111000B	; MASK FOR READY, PAPER OUT, FAULT
+PIOERR  0008                   C      PIOERR	EQU	00001000B	; ERROR STATE MASK
+PRTBSY  0005                   C      PRTBSY	EQU	05H		; PRINTER BUSY IS BIT #5 IN STATUS BYTE
+                         C      
+                         C      ; FDC EQUATES
+                         C      
+FDCCMD  0014                   C      FDCCMD	EQU	14H		; FDC STATUS AND COMMAND PORT
+FDCTRK  0015                   C      FDCTRK	EQU	15H		; FDC TRACK PORT
+FDCSEC  0016                   C      FDCSEC	EQU	16H		; FDC SECTOR PORT
+FDCDAT  0017                   C      FDCDAT	EQU	17H		; FDC DATA PORT
+                         C      
+                         C      ; FLOPPY DRIVE SELECT LATCH
+                         C      
+FDD  0018                   C      FDD	EQU	18H		; DRIVE SELECT LATCH
+                         C      
+                         C      ; SYSTEM PROM SWITCH ADDRESS
+                         C      
+PROMSW  0004                   C      PROMSW	EQU	04H		; SYSTEM PROM DISABLE ADDRESS
+DEFDSK  0004                   C      DEFDSK	EQU	04H		; DEFAULT DRIVE NUMBER
+                         C      
+                         C      ; DMA PORT ADDRESS
+                         C      
+DMA  0010                   C      DMA	EQU	10H		; DMA PORT ADDRESS
+                         C      
+                         C      ; FDC STATUS BITS
+                         C      
+FDCBSY  0000                   C      FDCBSY	EQU	0		; FDC BUSY IS BIT 0
+FDCIND  0001                   C      FDCIND	EQU	1		; FDC INDEX HOLE DETECTED
+FDCTR0  0002                   C      FDCTR0	EQU	2		; FDC TRACK 0 DETECTED
+FDCCRC  0003                   C      FDCCRC	EQU	3		; FDC CRC ERROR ENCOUNTERED
+FDCSEE  0004                   C      FDCSEE	EQU	4		; FDC SEEK ERROR ENCOUNTERED
+FDCHLD  0005                   C      FDCHLD	EQU	5		; FDC HEAD LOAD ACK.
+FDCPRT  0006                   C      FDCPRT	EQU	6		; FDC DISK IS WRITE PROTECTED
+FDCRDY  0007                   C      FDCRDY	EQU	7		; FDC DISK NOT READY BIT
+                         C      
+                         C      ; FDC STATUS BYTE MASKS
+                         C      
+ERRMSK  00DC                   C      ERRMSK	EQU	11011100B	; MASK OFF INSIGNIFICANT BITS
+SEEMSK  0098                   C      SEEMSK	EQU	10011000B	; CHECK THE NOT READY BIT
+DNRMSK  0080                   C      DNRMSK	EQU	10000000B	; DRIVE NOT READY MASK
+                         C      
+                         C      ; FDC COMMAND BYTES
+                         C      
+RESCMD  0000                   C      RESCMD	EQU	00000000B	; HOME HEAD COMMAND, NO VERIFY
+SEECMD802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-31
+802FEQU.MAC--EQUATES MODULE
+
+  0014                   C      SEECMD	EQU	00010100B	; SEEK TRACK COMMAND
+HDSCMD  0034                   C      HDSCMD	EQU	00110100B	; HEAD STEP, PREVIOUS DIRECTION
+HSICMD  0054                   C      HSICMD	EQU	01010100B	; HEAD STEP IN, TOWARD HUB.
+HSOCMD  0074                   C      HSOCMD	EQU	01110100B	; HEAD STEP OUT, TOWARD EDGE.
+RDSCMD  0080                   C      RDSCMD	EQU	10000000B	; READ SECTOR
+WTSCMD  00A0                   C      WTSCMD	EQU	10100000B	; WRITE SECTOR
+RDACMD  00C0                   C      RDACMD	EQU	11000000B	; READ SECTOR ADDRESS
+RDTCMD  00E0                   C      RDTCMD	EQU	11100000B	; READ TRACK
+WTTCMD  00F0                   C      WTTCMD	EQU	11110000B	; WRITE TRACK
+FRCCMD  00D0                   C      FRCCMD	EQU	11010000B	; FORCE TERMINATION
+                         C      
+                         C      ; ASCII EQUATES
+                         C      
+ASCETX  0003                   C      ASCETX	EQU	03H		; ASCII END OF TRANSMISSION
+ASCACK  0006                   C      ASCACK	EQU	06H		; ASCII ACKNOWLEDGEMENT
+ASCLF  000A                   C      ASCLF	EQU	0AH		; ASCII LINE FEED
+ASCCR  000D                   C      ASCCR	EQU	0DH		; ASCII CARRIAGE RETURN
+                         C      
+                         C      ; CP/M EQUATES
+                         C      
+CPMBUF  0080                   C      CPMBUF	EQU	80H		; DEFAULT CP/M DMA ADDRESS
+IOBYTE  0003                   C      IOBYTE	EQU	0003H
+LOGDRV  0004                   C      LOGDRV	EQU	0004H		; CURRENTLY LOGGED DRIVE ADDRESS
+JP  00C3                   C      JP	EQU	0C3H		; JUMP OPCODE.
+RECLEN  0080                   C      RECLEN	EQU	128		; NO. OF BYTES IN CP/M RECORD (SECTOR).
+BDOSLN  1600                   C      BDOSLN	EQU	1600H		; LENGTH OF BDOS, IN BYTES.
+CCPLEN  0800                   C      CCPLEN	EQU	800H		; LENGTH OF CCP, IN BYTES
+                         C      
+                         C      ; DISK PARAMETER BLOCKS.
+                         C      ; FIRST COME THE EQUATES 
+                         C      ; FOR DISK PARAMETER BLOCKS
+                         C      
+BPDE  0020                   C      BPDE	EQU	32		; BYTES/DIRECTORY ENTRY
+                         C      
+                         C      ; DRIVE 0 EQUATES
+                         C      
+OFF0  0002                   C      OFF0	EQU	2		; NUMBER OF TRACK RESERVED FOR CP/M O.S.
+TPD0  0028                   C      TPD0	EQU	40		; NUMBER OF TRACKS/DISK
+BPS0  0100                   C      BPS0	EQU	256		; NUMBER OF BYTES/SECTOR
+NSIDE0  0002                   C      NSIDE0	EQU	2		; NUMBER OF SIDE/DISK
+PSPT0  0012                   C      PSPT0	EQU	18		; NUMBER OF PHYSICAL SECTOR/TRACK
+SPT0BPS0PSPT0NSIDE0  0048                   C      SPT0	EQU	((BPS0/128)*PSPT0)*NSIDE0	;NUMBER OF CP/M SECTOR/TRACK
+SPD0SPT0TPD0  0B40                   C      SPD0	EQU	SPT0*TPD0	; NUMBER OF SECTORS/DISK
+EPD0  0040                   C      EPD0	EQU	64		; NUMBER OF DIRECTORY ENTRIES 
+BLS0  0800                   C      BLS0	EQU	2048		; BLOCK SIZE
+BSH0  0004                   C      BSH0	EQU	4		; BLOCK SHIFT FACTOR
+BLM0BLS0802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-32
+802FEQU.MAC--EQUATES MODULE
+
+  000F                   C      BLM0	EQU	(BLS0/128)-1	; BLOCK MASK
+EXM0  0000                   C      EXM0	EQU	0		; EXTENT MASK
+DSM0SPD0SPT0OFF0BLM0  00AA                   C      DSM0	EQU	((SPD0-(SPT0*OFF0))/(BLM0+1))-1	;CP/M BLOCK PER DISK
+DRM0EPD0  003F                   C      DRM0	EQU	EPD0-1 		; DIRECTORY ENTRIES - 1
+ALL0  0080                   C      ALL0	EQU	10000000B	; DIRECTORY BLOCK BIT MAP LOW
+ALH0  0000                   C      ALH0	EQU	0B		; DIRECTORY BLOCK BIT MAP HIGH
+CKS0DRM0  0010                   C      CKS0	EQU	(DRM0+1)/4	; SIZE OF DIRECTORY CHECK VECTOR
+                         C      
+                         C      ; DRIVE 1 EQUATES
+                         C      
+OFF1  0002                   C      OFF1	EQU	2		; NUMBER OF TRACK RESERVED FOR CP/M O.S.
+TPD1  0028                   C      TPD1	EQU	40		; NUMBER OF TRACKS/DISK
+BPS1  0100                   C      BPS1	EQU	256		; NUMBER OF BYTES/SECTOR
+NSIDE1  0002                   C      NSIDE1	EQU	2		; NUMBER OF DISK SIDE
+PSPT1  0012                   C      PSPT1	EQU	18		; NUMBER OF PHYSICAL SECTOR/TRACK
+SPT1BPS1PSPT1NSIDE1  0048                   C      SPT1	EQU	((BPS1/128)*PSPT1)*NSIDE1 ; NUMBER OF CP/M SECTORS/TRACK
+SPD1SPT1TPD1  0B40                   C      SPD1	EQU	SPT1*TPD1	; NUMBER OF SECTORS/DISK
+EPD1  0040                   C      EPD1	EQU	64		; NUMBER OF DIRECTORY ENTRIES
+BLS1  0800                   C      BLS1	EQU	2048		; BLOCK SIZE
+BSH1  0004                   C      BSH1	EQU	4		; BLOCK SHIFT FACTOR
+BLM1BLS1  000F                   C      BLM1	EQU	(BLS1/128)-1	; BLOCK MASK
+EXM1  0000                   C      EXM1	EQU	0		; EXTENT MASK
+DSM1SPD1SPT1OFF1BLM0  00AA                   C      DSM1	EQU	((SPD1-(SPT1*OFF1))/(BLM0+1))-1	; CP/M BLOCK PER DISK
+DRM1EPD1  003F                   C      DRM1	EQU	EPD1-1		; DIRECTORY ENTRIES-1
+ALL1  0080                   C      ALL1	EQU	10000000B	; DIRECTORY BLOCK BIT MAP LOW
+ALH1  0000                   C      ALH1	EQU	0B		; DIRECTORY BLOCK BIT MAP HIGH
+CKS1DRM1  0010                   C      CKS1	EQU	(DRM1+1)/4	; SIZE OF DIRECTORY CHECK VECTOR
+                         C      
+                         C      ; CP/M HOST DISK CONSTANTS
+                         C      
+BLKSIZBLS0  0800                   C      BLKSIZ	EQU	BLS0		; CP/M ALLOCATION BLOCK SIZE
+HSTSIZBPS0  0100                   C      HSTSIZ	EQU	BPS0		; SYSTEM DISK SECTOR SIZE
+HSTSPTPSPT0NSIDE0  0024                   C      HSTSPT	EQU	PSPT0*NSIDE0	; SYSTEM DISK SECTOR PER TRACK
+HSTBLKHSTSIZ  0002                   C      HSTBLK	EQU	HSTSIZ/128	; CP/M SECTORS/HOST BUFFER
+CPMSPTHSTBLKHSTSPT  0048                   C      CPMSPT	EQU	HSTBLK*HSTSPT	; CP/M SECTOR PER TRACK
+SECMSKHSTBLK  0001                   C      SECMSK	EQU	HSTBLK-1	; SECTOR MASK
+MAXDRV  0001                   C      MAXDRV	EQU	1		; MAXIMUM DRIVE NO.
+NODRVSMAXDRV  0002                   C      NODRVS	EQU	MAXDRV+1	; NO. OF DRIVES IN SYSTEM
+NOTRYS  000A                   C      NOTRYS	EQU	10		; NO. OF RETRIES ON SEEK, READ, WRITE.
+                         C      
+                         C      ; END OF 802FEQU.MAC
+                                
+                                	SUBTTL	802FDATA.MAC--DATA DEFINITION MODULE
+                                	PAGE
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-33
+802FDATA.MAC--DATA DEFINITION MODULE
+
+                                
+                         C      	INCLUDE 802FDATA.MAC
+                         C      
+                         C      ; DATA STORAGE
+                         C      
+                         C      ; DMA INITIALIZATION TABLES FOR READ 
+                         C      ; AND WRITE OPERATIONS
+                         C      
+RDSTABDMA  F77F    10             C      RDSTAB:	DEFB	DMA		; PORT ADDRESS
+  F780    0F             C      	DEFB	15		; TABLE COUNT
+  F781    C3             C      	DEFB	11000011B	; RESET THE DMA
+  F782    6D             C      	DEFB	01101101B	; PORT ADDRESS FOLLOWS 
+FDCDAT  F783    17             C      	DEFB	FDCDAT		; FDC DATA PORT ADDRESS
+  F784    00FF           C      	DEFW	0FFH		; DISK BUFFER - 1
+  F786    3C             C      	DEFB	00111100B	; PORT A IS FIXED
+  F787    10             C      	DEFB	00010000B	; PORT B IS MEMORY, INCREMENTS
+  F788    CD             C      	DEFB	11001101B	; PORT B MEMORY ADDRESS FOLLOWS
+HSTBUF  F789    F991           C      	DEFW	HSTBUF		; ADDRESS OF DISK BUFFER
+  F78B    8A             C      	DEFB	10001010B	; READY ACTIVE HIGH, END OF BLOCK
+  F78C    CF             C      	DEFB	11001111B	; LOAD REGISTERS
+  F78D    05             C      	DEFB	00000101B	; A -> B, TRANSFER MODE
+  F78E    CF             C      	DEFB	11001111B	; LOAD REGISTERS
+  F78F    87             C      	DEFB	10000111B	; ARM THE DMA
+                         C       
+WTSTABDMA  F790    10             C      WTSTAB:	DEFB	DMA		; PORT ADDRESS
+  F791    0F             C      	DEFB	15		; TABLE COUNT
+  F792    C3             C      	DEFB	11000011B	; RESET THE DMA
+  F793    6D             C      	DEFB	01101101B	; PORT ADDRESS FOLLOWS 
+FDCDAT  F794    17             C      	DEFB	FDCDAT		; FDC DATA PORT ADDRESS
+  F795    00FF           C      	DEFW	0FFH		; DISK BUFFER - 1
+  F797    3C             C      	DEFB	00111100B	; PORT A IS FIXED
+  F798    10             C      	DEFB	00010000B	; PORT B IS MEMORY, INCREMENTS
+  F799    CD             C      	DEFB	11001101B	; PORT B MEMORY ADDRESS FOLLOWS
+HSTBUF  F79A    F991           C      	DEFW	HSTBUF		; ADDRESS OF DISK BUFFER
+  F79C    8A             C      	DEFB	10001010B	; READY ACTIVE HIGH, END OF BLOCK
+  F79D    CF             C      	DEFB	11001111B	; LOAD REGISTERS
+  F79E    01             C      	DEFB	00000001B	; B -> A, TRANSFER MODE
+  F79F    CF             C      	DEFB	11001111B	; LOAD REGISTERS
+  F7A0    87             C      	DEFB	10000111B	; ARM THE DMA
+                         C      
+                         C      ; SIO INITIALIZATION TABLE FOR
+                         C      ; SERIAL PRINTER, 9600 BAUD,
+                         C      ; ETX/ACK PROTOCOL.
+                         C      
+SIOTABSIOBC1  F7A1    23             C      SIOTAB:	DEFB	SIOBC1		; PORT ADDRESS
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-34
+802FDATA.MAC--DATA DEFINITION MODULE
+
+  F7A2    08             C      	DEFB	8		; TABLE SIZE
+  F7A3    18             C      	DEFB	00011000B	; CHANNEL RESET
+  F7A4    18             C      	DEFB	00011000B	; ANOTHER ONE
+  F7A5    14             C      	DEFB	00010100B	; EXTERNAL STATUS RESET, POINT TO WR4
+  F7A6    4C             C      	DEFB	01001100B	; X16 CLOCK, 2 STOP BITS
+  F7A7    03             C      	DEFB	00000011B	; POINT TO WR3
+  F7A8    C1             C      	DEFB	11000001B	; 8 BITS RX, RX ENABLE
+  F7A9    05             C      	DEFB	00000101B	; POINT TO WR5
+  F7AA    EA             C      	DEFB	11101010B	; DTR, 8 BITS TX, RTS, TX ENABLE
+                         C      
+                         C      ; CTC IS BAUD GENERATOR FOR
+                         C      ; SIO.
+                         C      
+CTCTABCTC1  F7AB    09             C      CTCTAB:	DEFB	CTC1		; PORT ADDRESS FOR CTC
+  F7AC    02             C      	DEFB	2		; TABLE SIZE
+  F7AD    47             C      	DEFB	01000111B	; COUNTER MODE, VALUE FOLLOWS
+  F7AE    04             C      	DEFB	4		; COUNTDOWN FOR 9600 BAUD
+                         C      
+                         C      ; MESSAGES, MESSAGES
+                         C      
+SIGNON  F7AF    0D             C      SIGNON:	DEFB	0DH
+  F7B0    0A             C      	DEFB	0AH
+  F7B1    54 45 4C 45    C      	DEFB	'TELEVIDEO SYSTEM TS-802 V2.0'
+  F7B5    56 49 44 45    C      
+  F7B9    4F 20 53 59    C      
+  F7BD    53 54 45 4D    C      
+  F7C1    20 54 53 2D    C      
+  F7C5    38 30 32 20    C      
+  F7C9    56 32 2E 30    C      
+  F7CD    0D             C      	DEFB	0DH
+  F7CE    0A             C      	DEFB	0AH
+  F7CF    36 32 6B 20    C      	DEFM	'62k CP/M vers 2.2'
+  F7D3    43 50 2F 4D    C      
+  F7D7    20 76 65 72    C      
+  F7DB    73 20 32 2E    C      
+  F7DF    32             C      
+  F7E0    0D             C      	DEFB	0DH
+  F7E1    0A             C      	DEFB	0AH
+  F7E2    00             C      	DEFB	0		; TERMINATION
+                         C      
+BOOMSG  F7E3    0D             C      BOOMSG:	DEFB	0DH
+  F7E4    0A             C      	DEFB	0AH
+  F7E5    42 6F 6F 74    C      	DEFM	'Boot Error.'	; ERROR ON WARM BOOT
+  F7E9    20 45 72 72    C      
+  F7ED    6F 72 2E       C      
+  F7F0    0D             C      	DEFB	0DH
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-35
+802FDATA.MAC--DATA DEFINITION MODULE
+
+  F7F1    0A             C      	DEFB	0AH
+  F7F2    00             C      	DEFB	0
+                         C      
+                         C      ; DETAILED ERROR MESSAGE TABLE
+                         C      
+ERRMSG  F7F3    0D             C      ERRMSG:	DEFB	0DH
+  F7F4    0A             C      	DEFB	0AH
+VCMD  F7F5                   C      VCMD:	DEFS	5		; COMMAND
+  F7FA    20 45 52 52    C      	DEFB	' ERROR: SIDE# '
+  F7FE    4F 52 3A 20    C      
+  F802    53 49 44 45    C      
+  F806    23 20          C      
+VSIDE  F808                   C      VSIDE:	DEFS	1		; SIDE
+  F809    2C 20 54 52    C      	DEFB	', TRACK# '
+  F80D    41 43 4B 23    C      
+  F811    20             C      
+VTRK  F812                   C      VTRK:	DEFS	2		; TRACK NUMBER
+  F814    2C 20 53 45    C      	DEFB	', SECTOR# '
+  F818    43 54 4F 52    C      
+  F81C    23 20          C      
+VSEC  F81E                   C      VSEC:	DEFS	2		; SECTOR NUMBER
+  F820    2C 20 46 44    C      	DEFB	', FDC STATUS '
+  F824    43 20 53 54    C      
+  F828    41 54 55 53    C      
+  F82C    20             C      
+VSTAT  F82D                   C      VSTAT:	DEFS	2		; ERROR STATUS
+  F82F    00             C      	DEFB	0
+RMSG  F830    52 45 41 44    C      RMSG:	DEFB	'READ '
+  F834    20             C      
+WMSG  F835    57 52 49 54    C      WMSG:	DEFB	'WRITE'
+  F839    45             C      
+                         C      
+                         C      ; DOOR MESSAGE TABLE
+                         C      
+RDYMSG  F83A    0D             C      RDYMSG:	DEFB	0DH
+  F83B    0A             C      	DEFB	0AH
+  F83C    43 68 65 63    C      	DEFM	'Check the disk in drive "'
+  F840    6B 20 74 68    C      
+  F844    65 20 64 69    C      
+  F848    73 6B 20 69    C      
+  F84C    6E 20 64 72    C      
+  F850    69 76 65 20    C      
+  F854    22             C      
+VDRIVE  F855                   C      VDRIVE:	DEFS	1
+  F856    22 2C 20 61    C      	DEFM	'", and close the door.'
+  F85A    6E 64 20 63    C      
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-36
+802FDATA.MAC--DATA DEFINITION MODULE
+
+  F85E    6C 6F 73 65    C      
+  F862    20 74 68 65    C      
+  F866    20 64 6F 6F    C      
+  F86A    72 2E          C      
+  F86C    0D             C      	DEFB	0DH
+  F86D    0A             C      	DEFB	0AH
+  F86E    00             C      	DEFB	0
+                         C      
+                         C      ; TEMPORARY STORAGES FOR REGISTERS
+                         C      
+TEMPBC  F86F    0000           C      TEMPBC:	DEFW	0
+TEMPDE  F871    0000           C      TEMPDE:	DEFW	0
+TEMPHL  F873    0000           C      TEMPHL:	DEFW	0
+                         C      
+JMPSW  F875    00             C      JMPSW:	DEFB	0		; FLAG FOR DOOR MESSAGE PRINT
+DRIVE  F876                   C      DRIVE:	DEFS	1		; STORAGE FOR SAVING CURRENT DRIVE NO
+TSEC  F877                   C      TSEC:	DEFS	1		; TARGET SECTOR
+MOTFLG  F878    01             C      MOTFLG:	DEFB	1		; MOTOR ON-OFF FLAG
+                         C      
+                         C      ; HERE ARE THE VERSION 2 DISK PARAMETER TABLES
+                         C      
+DPBASE  F879                   C      DPBASE:
+                         C      
+                         C      ; DRIVE 0 DISK PARAMETER HEADER
+                         C      
+HEAD0  F879    0000           C      HEAD0:	DEFW	0		; ADDR. OF SECTOR TRANSLATE TABLE FOR DISK 0
+  F87B    0000           C      	DEFW	0		; BDOS SCRATCH WORDS
+  F87D    0000           C      	DEFW	0		; THREE OF THEM
+  F87F    0000           C      	DEFW	0
+DIRBUF  F881    F8A9           C      	DEFW	DIRBUF		; ADDR. OF DIRECTORY BUFFER FOR DISK 
+DPRMB0  F883    F899           C      	DEFW	DPRMB0		; ADDR. OF DISK PARAMETER BLOCK 0
+CHKSV0  F885    F93F           C      	DEFW	CHKSV0		; ADDR. OF CHECK SCRATCHPAD
+ALOCV0  F887    F929           C      	DEFW	ALOCV0		; ADDR. OF DISK ALLOCATION SCRATCHPAD
+                         C      
+                         C      
+                         C      ; DRIVE 1 DISK PARAMETER HEADER
+                         C      
+HEAD1  F889    0000           C      HEAD1:	DEFW	0		; ADDR. OF SECTOR TRANSLATE TABLE FOR DISK 1
+  F88B    0000           C      	DEFW	0		; BDOS SCRATCH WORDS
+  F88D    0000           C      	DEFW	0		; THREE OF THEM
+  F88F    0000           C      	DEFW	0
+DIRBUF  F891    F8A9           C      	DEFW	DIRBUF		; ADDR. OF DIRECTORY BUFFER FOR DISK 
+DPRMB1  F893    F899           C      	DEFW	DPRMB1		; ADDR. OF DISK PARAMETER BLOCK 1
+CHKSV1  F895    F965           C      	DEFW	CHKSV1		; ADDR. OF CHECK SCRATCHPAD
+ALOCV1  F897    F94F           C      	DEFW	ALOCV1		; ADDR. OF DISK ALLOCATION SCRATCHPAD
+                         C      
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-37
+802FDATA.MAC--DATA DEFINITION MODULE
+
+                         C      
+                         C      ; HERE ARE THE DISK PARAMETER BLOCKS
+                         C      
+DPRMB0  F899                   C      DPRMB0:		
+DPRMB1  F899                   C      DPRMB1:	
+SPT0  F899    0048           C      	DEFW	SPT0		; NO. OF SECTOR PER TRACK
+BSH0  F89B    04             C      	DEFB	BSH0		; BLOCK SHIFT FACTOR
+BLM0  F89C    0F             C      	DEFB	BLM0		; BLOCK MASK
+EXM0  F89D    00             C      	DEFB	EXM0		; EXTENT MASK
+DSM0  F89E    00AA           C      	DEFW	DSM0		; DETERMINES TOTAL STORAGE CAPACITY
+DRM0  F8A0    003F           C      	DEFW	DRM0		; DETERMINES TOTAL NO. OF DIR. ENTRIES
+ALL0  F8A2    80             C      	DEFB	ALL0		; BLOCK ALLOCATION FOR DIRECTORY	
+ALH0  F8A3    00             C      	DEFB	ALH0		; HIGH ORDER BYTE OF ABOVE
+CKS0  F8A4    0010           C      	DEFW	CKS0		; SIZE OF DIRECTORY CHECK VECTOR
+OFF0  F8A6    0002           C      	DEFW	OFF0		; NO. OF TRACKS RESERVED FOR SYSTEM
+                         C      
+                         C      ; MISCELLANEOUS INITIALIZED STORAGE
+                         C      
+UL1SIZ  F8A8    80             C      UL1SIZ:	DEFB	80H		; SIZE OF SERIAL PRINTER BUFFER		
+                         C      
+                         C      ; UNALLOCATED STORAGE AREAS
+                         C      
+DIRBUF  F8A9                   C      DIRBUF:	DEFS	128		; DIRECTORY BUFFER
+                         C      
+                         C      ; DRIVE 0 STORAGE AREA
+                         C      
+ALOCV0DSM0  F929                   C      ALOCV0:	DEFS	(DSM0/8)+1	; ALLOCATION VECTOR STORAGE
+CHKSV0CKS0  F93F                   C      CHKSV0:	DEFS	CKS0		; CHECK VECTOR STORAGE
+                         C      
+                         C      ; DRIVE 1 STORAGE AREA
+                         C      
+ALOCV1DSM1  F94F                   C      ALOCV1:	DEFS	(DSM1/8)+1	; ALLOCATION VECTOR STORAGE
+CHKSV1CKS1  F965                   C      CHKSV1:	DEFS	CKS1		; CHECK VECTOR STORAGE
+                         C      
+                         C      ; DISK I/O COMMAND PARAMETERS
+                         C      
+COMAND  F975                   C      COMAND:	DEFS	1		; CURRENT COMMAND
+FDDBYT  F976                   C      FDDBYT:	DEFS	1		; DRIVE, SIDE, DENSITY, SELECT LATCH
+RETRY  F977                   C      RETRY:	DEFS	1		; RETRY COUNT
+BOOTRY  F978                   C      BOOTRY:	DEFS	1		; BOOT RETRY COUNT
+UNMSTA  F979                   C      UNMSTA:	DEFS	1		; UNMASKED VERSION OF ABOVE
+DMATAB  F97A                   C      DMATAB:	DEFS	2		; DMA INITIALIZE PARAMETER POINTER
+                         C      
+                         C      ; UNITIALIZED RAM DATA AREAS
+                         C      
+SEKDSK  F97C                   C      SEKDSK:	DEFS	1		; SEEK DISK NUMBER
+SEKTRK802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	1-38
+802FDATA.MAC--DATA DEFINITION MODULE
+
+  F97D                   C      SEKTRK:	DEFS	1		; SEEK TRACK NUMBER
+SEKSEC  F97E                   C      SEKSEC:	DEFS	1		; SEEK SECTOR NUMBER
+                         C      
+HSTDSK  F97F                   C      HSTDSK: DEFS	1		; HOST DISK NUMBER
+HSTTRK  F980                   C      HSTTRK:	DEFS	1		; HOST TRACK NUMBER
+HSTSEC  F981                   C      HSTSEC:	DEFS	1		; HOST SECTOR NUMBER
+                         C      
+SEKHST  F982                   C      SEKHST:	DEFS	1		; SEEK HOST SECTOR NUMBER
+HSTACT  F983                   C      HSTACT:	DEFS	1		; HOST ACTIVE FLAG
+HSTWRT  F984                   C      HSTWRT:	DEFS	1		; HOST BUFFER WRITE PENDING FLAG
+                         C      
+UNACNT  F985                   C      UNACNT:	DEFS	1		; UNALLOATED SECTOR COUNT
+UNADSK  F986                   C      UNADSK:	DEFS	1		; UNALLOCATED DISK
+UNATRK  F987                   C      UNATRK:	DEFS	1		; UNALLOCATED TRACK
+UNASEC  F988                   C      UNASEC:	DEFS	1		; UNALOCATED SECTOR
+                         C      
+ERFLAG  F989                   C      ERFLAG:	DEFS	1		; ERROR REPORTING
+RSFLAG  F98A                   C      RSFLAG:	DEFS	1		; PRE-READ SECTOR FLAG
+READOP  F98B                   C      READOP:	DEFS	1		; 0 IF WRITE OPERATION; 1 IF READ OPER.
+WRTYPE  F98C                   C      WRTYPE:	DEFS	1		; WRITE OPERATION TYPE
+DMAADR  F98D                   C      DMAADR:	DEFS	2		; LAST DMA ADDRESS
+TRKTABNODRVS  F98F                   C      TRKTAB:	DEFS	NODRVS		; CURRENT TRACK TABLE
+HSTBUFHSTSIZ  F991                   C      HSTBUF:	DEFS	HSTSIZ		; HOST DISK I/O BUFFER AREA.
+UL1CNT  FA91                   C      UL1CNT:	DEFS	1		; SERIAL PRINTER BUFFER COUNT
+                         C      
+                         C      ; END OF 802FDATA.MAC
+                                
+                                	.DEPHASE 	
+                                	END
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	S
+802FDATA.MAC--DATA DEFINITION MODULE
+
+Macros:
+
+Symbols:
+ALH0	0000 	ALH1	0000 	ALL0	0080 	ALL1	0080 
+ALOCV0	F929 	ALOCV1	F94F 	ASCACK	0006 	ASCCR	000D 
+ASCETX	0003 	ASCLF	000A 	BATIN	F418 	BATOUT	F418 
+BATST	F41B 	BDOS	E406 	BDOSLN	1600 	BIOS	F200 
+BLKSIZ	0800 	BLM0	000F 	BLM1	000F 	BLS0	0800 
+BLS1	0800 	BOOMSG	F7E3 	BOOT	F264 	BOOTRY	F978 
+BPDE	0020 	BPS0	0100 	BPS1	0100 	BSH0	0004 
+BSH1	0004 	CCPLEN	0800 	CHKSV0	F93F 	CHKSV1	F965 
+CKS0	0010 	CKS1	0010 	COMAND	F975 	CONIN	F325 
+CONOUT	F34F 	CONST	F2FF 	CONT10	F741 	CPMBAS	DC00 
+CPMBUF	0080 	CPMSPT	0048 	CRT10	F349 	CRT20	F336 
+CRTIN	F332 	CRTOUT	F366 	CRTST	F31C 	CTC0	0008 
+CTC1	0009 	CTC2	000A 	CTC3	000B 	CTCTAB	F7AB 
+DEFDSK	0004 	DIRBUF	F8A9 	DMA	0010 	DMAADR	F98D 
+DMATAB	F97A 	DNRMSK	0080 	DPBASE	F879 	DPRMB0	F899 
+DPRMB1	F899 	DRIVE	F876 	DRM0	003F 	DRM1	003F 
+DSM0	00AA 	DSM1	00AA 	EPD0	0040 	EPD1	0040 
+ERFLAG	F989 	ERR10	F729 	ERRMSG	F7F3 	ERRMSK	00DC 
+ERRPRT	F71A 	EXM0	0000 	EXM1	0000 	FDCBSY	0000 
+FDCCMD	0014 	FDCCRC	0003 	FDCDAT	0017 	FDCHLD	0005 
+FDCIND	0001 	FDCPRT	0006 	FDCRDY	0007 	FDCSEC	0016 
+FDCSEE	0004 	FDCTR0	0002 	FDCTRK	0015 	FDD	0018 
+FDDBYT	F976 	FRCCMD	00D0 	FTAB	F763 	G10	F77C 
+GHEX	F773 	GOCPM	F2D4 	HDSCMD	0034 	HDWINI	F6F5 
+HEAD0	F879 	HEAD1	F889 	HOME	F41D 	HOMED	F426 
+HSICMD	0054 	HSOCMD	0074 	HSTACT	F983 	HSTBLK	0002 
+HSTBUF	F991 	HSTDSK	F97F 	HSTSEC	F981 	HSTSIZ	0100 
+HSTSPT	0024 	HSTTRK	F980 	HSTWRT	F984 	IOBYTE	0003 
+IODI10	F70B 	IODI20	F70E 	IODISP	F6FF 	JMPSW	F875 
+JP	00C3 	LIST	F388 	LISTST	F3ED 	LOGDRV	0004 
+LPTLSS	F3F9 	LPTLST	F394 	LPTS10	F402 	MAXDRV	0001 
+MOTFLG	F878 	NODRVS	0002 	NOTRYS	000A 	NSIDE0	0002 
+NSIDE1	0002 	OFF0	0002 	OFF1	0002 	ONE	F73F 
+PIOAC	001E 	PIOAD	001C 	PIOBC	001F 	PIOBD	001D 
+PIOERR	0008 	PIOMSK	0038 	PROMSW	0004 	PRTBSY	0005 
+PRTENT	F6F0 	PRTINI	F6EE 	PRTMSG	F6E4 	PSPT0	0012 
+PSPT1	0012 	PTPPUN	F418 	PTRRDR	F418 	PUNCH	F37C 
+RCVRDY	0000 	RDACMD	00C0 	RDMA10	F6DC 	RDSCMD	0080 
+RDSTAB	F77F 	RDTCMD	00E0 	RDWT10	F4FC 	RDWT20	F506 
+RDWT30	F522 	RDWT40	F526 	RDWT50	F549 	RDWT60	F557 
+RDWTCM	F4CC 	RDYMSG	F83A 	READ	F453 	READER	F370 
+READHS	F55F 	READOP	F98B 	RECLEN	0080 	RESCMD	0000 
+RESD10	F6B3 	RESDMA	F6D9 	RESDSK	F6AA 	RESTOR	F6C5 
+RETRY	F977 	REV	F263 	RMSG	F830 	RSFLAG	F98A 
+RWHS10	F583 	RWHS20	F59D 	RWHS30	F5B3 	RWHSEC	F56B 
+SECMSK	0001 	SECTRN	F450 	SEECMD	0014 	SEEK	F5BB 
+802FBIOS.MAC--TELEVIDEO SYSTEM TS-802 CBIOS -- AUG. 25, 1981 	MACRO-80 3.36	17-Mar-80	PAGE	S-1
+802FDATA.MAC--DATA DEFINITION MODULE
+
+SEEMSK	0098 	SEKDSK	F97C 	SEKHST	F982 	SEKSEC	F97E 
+SEKTRK	F97D 	SELD10	F696 	SELD20	F69E 	SELDRV	F693 
+SELDSK	F42B 	SELS10	F673 	SELS20	F68D 	SELSID	F662 
+SETDMA	F44B 	SETSEC	F446 	SETTRK	F441 	SIGMSG	F64E 
+SIGNON	F7AF 	SIOAC0	000E 	SIOAC1	0022 	SIOAD0	000C 
+SIOAD1	0020 	SIOBC0	000F 	SIOBC1	0023 	SIOBD0	000D 
+SIOBD1	0021 	SIOTAB	F7A1 	SPD0	0B40 	SPD1	0B40 
+SPT0	0048 	SPT1	0048 	STROBE	0000 	TEMPBC	F86F 
+TEMPDE	F871 	TEMPHL	F873 	TPD0	0028 	TPD1	0028 
+TRKTAB	F98F 	TRXRDY	0002 	TSEC	F877 	TTYIN	F331 
+TTYOUT	F35B 	TTYS1	F319 	TTYST	F30B 	UC1IN	F418 
+UC1OUT	F418 	UC1ST	F41B 	UL1CNT	FA91 	UL1L10	F3B4 
+UL1L20	F3C2 	UL1L30	F3C6 	UL1L40	F3D2 	UL1L50	F3D8 
+UL1L60	F3E4 	UL1L70	F3EA 	UL1LSS	F404 	UL1LST	F3A9 
+UL1SIZ	F8A8 	UNACNT	F985 	UNADSK	F986 	UNASEC	F988 
+UNATRK	F987 	UNMSTA	F979 	UNUSED	F417 	UP1PUN	F418 
+UP2PUN	F418 	UR1RDR	F418 	UR2RDR	F418 	VCMD	F7F5 
+VDRIVE	F855 	VER	F262 	VSEC	F81E 	VSIDE	F808 
+VSTAT	F82D 	VTRK	F812 	WAIT	F5DB 	WAIT10	F5DD 
+WAIT20	F5F3 	WAIT30	F623 	WAIT40	F60A 	WAIT50	F617 
+WBOO10	F28C 	WBOO20	F29C 	WBOO30	F2C2 	WBOO40	F2CC 
+WBOOT	F280 	WMSG	F835 	WRALL	0000 	WRDIR	0001 
+WRIT10	F48A 	WRIT20	F4BE 	WRIT30	F4C4 	WRITE	F467 
+WRITEH	F566 	WRMSG	F726 	WRTYPE	F98C 	WRUAL	0002 
+WTSCMD	00A0 	WTSTAB	F790 	WTTCMD	00F0 	
+
+
+
+No  Fatal error(s)
+
+ 
+TA	F979 	UNUSED	F417 	UP1PUN	F418 
+UP2PUN	F
